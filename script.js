@@ -108,7 +108,7 @@ const readBtn = document.getElementById('read-btn');
 if (readBtn) {
   readBtn.addEventListener('click', () => {
     const container = document.querySelector('.container');
-    container.classList.add('camera-down-leave');
+    if (container) container.classList.add('camera-down-leave');
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
@@ -121,7 +121,7 @@ const writeBtn = document.getElementById('write-btn');
 if (writeBtn) {
   writeBtn.addEventListener('click', () => {
     const container = document.querySelector('.container');
-    container.classList.add('camera-down-leave');
+    if (container) container.classList.add('camera-down-leave');
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
@@ -149,7 +149,7 @@ if (soundLibraryBtn) {
     localStorage.setItem('draft_story', JSON.stringify(draft));
 
     const container = document.querySelector('.container');
-    container.classList.add('camera-down-leave');
+    if (container) container.classList.add('camera-down-leave');
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
@@ -164,7 +164,7 @@ if (soundLibraryBtn) {
 document.querySelectorAll('#back-to-editor, #back-to-editor-top').forEach(btn => {
   btn.addEventListener('click', () => {
     const container = document.querySelector('.container');
-    container.classList.add('camera-down-leave');
+    if (container) container.classList.add('camera-down-leave');
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
@@ -180,7 +180,7 @@ document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
     localStorage.removeItem('current_story_id');
     
     const container = document.querySelector('.container');
-    container.classList.add('camera-down-leave');
+    if (container) container.classList.add('camera-down-leave');
     playPageTurn();
     // 小説を読む時はBGMの続きは不要なのでリセット
     localStorage.removeItem('bgm_time');
@@ -318,7 +318,7 @@ const backBtn = document.getElementById('back-to-library');
 if (backBtn) {
   backBtn.addEventListener('click', () => {
     const container = document.querySelector('.container');
-    container.classList.add('camera-down-leave');
+    if (container) container.classList.add('camera-down-leave');
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
@@ -334,7 +334,7 @@ document.querySelectorAll('.logo a').forEach(link => {
     if (href && !href.startsWith('#')) {
       e.preventDefault();
       const container = document.querySelector('.container');
-      container.classList.add('camera-down-leave');
+      if (container) container.classList.add('camera-down-leave');
       playPageTurn();
       saveBgmTime();
       setTimeout(() => {
