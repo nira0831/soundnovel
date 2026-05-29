@@ -125,7 +125,7 @@ if (writeBtn) {
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      location.href = 'write/write.html';
+      location.href = 'kaku.html';
     }, 700);
   });
 }
@@ -168,7 +168,9 @@ document.querySelectorAll('#back-to-editor, #back-to-editor-top').forEach(btn =>
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      location.href = 'write.html';
+      // 現在の場所が write フォルダ内なら一つ上の kaku.html へ
+      const isInSubFolder = window.location.pathname.includes('/write/') || window.location.pathname.includes('/read/');
+      location.href = isInSubFolder ? '../kaku.html' : 'kaku.html';
     }, 700);
   });
 });
@@ -185,7 +187,9 @@ document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
     // 小説を読む時はBGMの続きは不要なのでリセット
     localStorage.removeItem('bgm_time');
     setTimeout(() => {
-      location.href = 'read.html';
+      // index.htmlからなら read.html、read/novels.htmlからなら ../read.html
+      const isInReadFolder = window.location.pathname.includes('/read/');
+      location.href = isInReadFolder ? '../read.html' : 'read.html';
     }, 700);
   });
 });
@@ -220,7 +224,8 @@ if (publishBtn) {
     alert('物語を投稿しました！');
     localStorage.removeItem('draft_story');
     playPageTurn();
-    location.href = '../read/novels.html';
+    const isInSubFolder = window.location.pathname.includes('/write/');
+    location.href = isInSubFolder ? '../read/novels.html' : 'read/novels.html';
   });
 }
 
@@ -293,7 +298,7 @@ if (libraryGrid) {
       localStorage.removeItem('bgm_time');
       
       setTimeout(() => {
-        location.href = 'read.html';
+        location.href = '../read.html'; // novels.htmlはreadフォルダ内なので一つ上へ
       }, 700);
     }
 
@@ -322,7 +327,7 @@ if (backBtn) {
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      location.href = 'novels.html';
+      location.href = 'read/novels.html'; // rootのread.htmlからreadフォルダ内へ
     }, 700);
   });
 }
