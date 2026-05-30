@@ -650,11 +650,59 @@ if (textBody) {
           setTimeout(() => {
             endMarker.classList.add('is-visible');
             endMarker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // 物語が終わったら「次へ」ボタンを隠す
+            const nextBtn = document.getElementById('mobile-next-btn');
+            if (nextBtn) {
+              nextBtn.style.opacity = '0';
+              setTimeout(() => nextBtn.remove(), 300);
+            }
           }, 1200); // 1.2秒待ってからゆっくり表示
         }
       }
     }
   };
+
+  // スマホ・PC共通の「次へ」ボタンを生成
+  const createNextButton = () => {
+    const footer = document.querySelector('.reader-footer');
+    if (!footer) return; // フッターがないページ（一覧など）では表示しない
+
+    const nextBtn = document.createElement('button');
+    nextBtn.id = 'mobile-next-btn';
+    nextBtn.textContent = '次へ';
+    
+    // スタイル設定：一覧に戻るボタンの右側、本文の右端に合わせる
+    Object.assign(nextBtn.style, {
+      padding: '12px 32px',
+      borderRadius: '30px',
+      backgroundColor: 'rgba(0, 0, 0, 0.6)',
+      color: '#fff',
+      border: '1px solid rgba(255, 255, 255, 0.3)',
+      fontSize: '16px',
+      fontWeight: 'bold',
+      cursor: 'pointer',
+      backdropFilter: 'blur(5px)',
+      boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+      transition: 'opacity 0.3s, transform 0.1s',
+      userSelect: 'none',
+      marginLeft: 'auto' // 右寄せにする
+    });
+
+    // フッターのレイアウトを調整（flexで左右に配置）
+    footer.style.display = 'flex';
+    footer.style.justifyContent = 'space-between';
+    footer.style.alignItems = 'center';
+    footer.style.marginTop = '20px';
+
+    nextBtn.addEventListener('click', (e) => {
+      showNextLine();
+    });
+
+    footer.appendChild(nextBtn);
+  };
+
+  createNextButton();
 
   // 画面クリックで次へ（ボタンやリンク以外）
   window.addEventListener('click', (e) => {
