@@ -44,8 +44,9 @@ const startHomeBgm = () => {
     return;
   }
 
-    // 閲覧ページではホームBGMを再生しない
-    if (document.querySelector('.reader-section')) {
+    // 閲覧ページ（プレビュー中を除く）ではホームBGMを再生しない
+    // editor-containerがある場合は作品作成画面なので、プレビューエリアがあっても再生を続ける
+    if (document.querySelector('.reader-section') && !document.querySelector('.editor-container')) {
         hideAudioHint();
         return;
     }
@@ -675,7 +676,28 @@ if (textBody) {
 function updateSoundIndicator() {
   const textarea = document.getElementById('editor-body');
   const bar = document.getElementById('sound-indicator-bar');
-  if (!textarea || !bar) return;
+  const display = document.getElementById('editor-display');
+  if (!textarea || !bar || !display) return;
+
+  // バー（縦棒）の長さをテキストエリアの枠の高さに合わせる
+  bar.style.height = textarea.offsetHeight + 'px';
+  bar.style.left = '0'; // バーを本文の枠の左端に配置
+  bar.style.right = 'auto'; // 以前の右側指定を無効化
+
+  // 表示用ミラーレイヤーの更新
+  const text = textarea.value;
+  const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const tagRegexGlobal = /\[(BGM|SE|BG):(.+?)\]/g;
+  
+  // タグを「透明化」し、その上にアイコンを浮かべることで文字幅のズレを防ぐ
+  display.innerHTML = escapedText.replace(tagRegexGlobal, (match, type) => {
+    const icon = type === 'BGM' ? '📻' : (type === 'SE' ? '🔊' : '🖼️');
+    return `<span style="position:relative; display:inline-block; color:transparent; user-select:none; background:rgba(0,0,0,0.05); border-radius:3px;">${match}<span style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; pointer-events:auto; visibility:visible;" title="${match}">${icon}</span></span>`;
+  });
+
+  // スクロール位置を同期
+  display.scrollTop = textarea.scrollTop;
+  display.scrollLeft = textarea.scrollLeft;
 
   // コンテナがなければ作成
   let container = bar.querySelector('.sound-marker-container');
@@ -685,13 +707,16 @@ function updateSoundIndicator() {
     bar.appendChild(container);
   }
 
-  const text = textarea.value;
   const lines = text.split('\n');
+
+  // スタイル設定を動的に取得（フォントやパディングの変更によるズレを防止）
+  const computedStyle = window.getComputedStyle(textarea);
   
-  // 設定値 (CSSのfont-sizeとline-heightに合わせる)
-  const fontSize = 16; // style.cssの1remに相当
-  const lineHeight = fontSize * 1.6; // bodyのline-height 1.6に相当
-  const paddingTop = 15; // textareaのpadding-top 15pxに相当
+  // 明示的な指定がない場合のフォールバックを1.5（HTML側の指定に合わせる）に修正
+  const fontSize = parseFloat(computedStyle.fontSize);
+  const lineHeight = parseFloat(computedStyle.lineHeight) || (fontSize * 1.5);
+  const paddingTop = parseFloat(computedStyle.paddingTop);
+  const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
 
   container.innerHTML = '';
   // スクロール位置を同期
@@ -707,11 +732,17 @@ function updateSoundIndicator() {
       marker.className = 'sound-marker';
       
       let tooltips = [];
-      // BGMまたはSEが設定されている場合はオレンジに統一
-      if (bgmMatch || seMatch) {
-        marker.style.backgroundColor = '#ff9800'; 
-        if (bgmMatch) tooltips.push(`BGM: ${bgmMatch[1]}`);
-        if (seMatch) tooltips.push(`SE: ${seMatch[1]}`);
+      if (bgmMatch && seMatch) {
+        // BGMとSEの両方がある場合は黒
+        marker.style.background = '#000';
+        tooltips.push(`BGM: ${bgmMatch[1]}`);
+        tooltips.push(`SE: ${seMatch[1]}`);
+      } else if (bgmMatch) {
+        marker.style.backgroundColor = '#ff9800'; // BGMはオレンジ
+        tooltips.push(`BGM: ${bgmMatch[1]}`);
+      } else if (seMatch) {
+        marker.style.backgroundColor = '#2196f3'; // SEは青
+        tooltips.push(`SE: ${seMatch[1]}`);
       } else if (bgMatch) {
         // 背景変更のみの場合は従来の青緑色
         marker.style.backgroundColor = '#008080';
@@ -722,8 +753,11 @@ function updateSoundIndicator() {
       marker.title = tooltips.join('\n');
 
       // 行の位置に合わせて「ー」のような細い横棒を表示
-      marker.style.top = `${paddingTop + (index * lineHeight)}px`;
-      marker.style.height = '6px';
+      // テキストエリアの境界線（border）も考慮して位置を調整
+      marker.style.top = `${paddingTop + borderTop + (index * lineHeight) + (lineHeight / 2) - 1.5}px`;
+      marker.style.left = '0'; // バーの基準位置（左端）に合わせる
+      marker.style.height = '3px';
+      marker.style.width = '20px';
       container.appendChild(marker);
     }
   });
@@ -732,10 +766,99 @@ function updateSoundIndicator() {
   updateSoundHistory();
 }
 
+/**
+ * 文中の音響タグを解析してサイドバーの履歴リストを更新する
+ */
+function updateSoundHistory() {
+  const textarea = document.getElementById('editor-body');
+  const historyList = document.getElementById('sound-history-list');
+  if (!textarea || !historyList) return;
+
+  const text = textarea.value;
+  const tagRegex = /\[(BGM|SE|BG):(.+?)\]/g;
+  const matches = [];
+  let match;
+
+  // 全てのタグを抽出
+  while ((match = tagRegex.exec(text)) !== null) {
+    matches.push({ type: match[1], id: match[2] });
+  }
+
+  // 重複を除去しながら、新しい順（文末に近い順）に最大4件取得
+  const uniqueItems = [];
+  const seen = new Set();
+  for (let i = matches.length - 1; i >= 0; i--) {
+    const item = matches[i];
+    const key = `${item.type}:${item.id}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      uniqueItems.push(item);
+    }
+    if (uniqueItems.length >= 4) break;
+  }
+
+  historyList.innerHTML = '';
+  uniqueItems.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'sound-card';
+    card.style.margin = '0';
+    card.style.padding = '4px 12px';
+    card.style.fontSize = '0.75rem';
+    card.style.cursor = 'pointer';
+    card.style.textAlign = 'left';
+    
+    // IDを日本語名に変換するマップ
+    const soundNameMap = {
+      '00-home': 'ホーム', 'audio-home': 'ホーム',
+      '01-aki': '秋', '01-haru': '春', '01-huyu': '冬', '01-natu': '夏',
+      '02-ame': '雨', '02-kaze': '風',
+      '03-gakkou': '学校', '03-inaka': '田舎', '03-mori': '森', '03-tokai': '都会', '03-umi': '海',
+      '04-bouken': '冒険', '04-sentou': '戦闘',
+      '10-ame': '雨', '10-aruku': '歩く', '10-densya': '電車', '10-doa': 'ドア', '10-hasiru': '走る',
+      '10-mati': '街', '10-mekuru': 'めくる', '10-natu': '夏', '10-nokku': 'ノック',
+      '10-tokei': '時計', '10-umi': '海', 'audio-mekuru': 'めくる',
+      'black': '黒', 'white': '白', 'underwater': '水中'
+    };
+
+    const displayName = soundNameMap[item.id] || item.id;
+    let icon = item.type === 'BGM' ? '📻' : (item.type === 'SE' ? '🔊' : '🖼️');
+    // コロンを全角にし、IDの代わりに日本語名を表示
+    card.innerHTML = `<span>${icon} ${item.type}：${displayName}</span>`;
+    
+    card.onclick = () => {
+      // IDをコピー
+      navigator.clipboard.writeText(item.id).then(() => {
+        const originalHTML = card.innerHTML;
+        card.innerHTML = `<span style="color: #27ae60;">IDコピー & 再生中</span>`;
+        setTimeout(() => { card.innerHTML = originalHTML; }, 1500);
+      });
+
+      // 音声を試聴（BGタグ以外）
+      if (item.type !== 'BG') {
+        const isHome = (item.id === '00-home' || item.id === 'audio-home');
+        const targetAudio = document.getElementById(isHome ? 'audio-home' : item.id);
+        if (targetAudio) {
+          document.querySelectorAll('audio').forEach(a => {
+            if (a !== targetAudio) {
+              a.pause();
+              a.currentTime = 0;
+            }
+          });
+          const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
+          targetAudio.volume = savedVolume;
+          targetAudio.play().catch(e => console.log("Playback failed:", e));
+        }
+      }
+    };
+    historyList.appendChild(card);
+  });
+}
+
 // エディタが存在する場合の初期化と入力監視
 const editorTextArea = document.getElementById('editor-body');
 if (editorTextArea) {
   editorTextArea.addEventListener('input', updateSoundIndicator);
   editorTextArea.addEventListener('scroll', updateSoundIndicator);
+  window.addEventListener('resize', updateSoundIndicator);
   updateSoundIndicator();
 }
