@@ -5,35 +5,43 @@ body {
   line-height: 1.6;
   overflow-x: hidden;
   /* デフォルトの背景（index.html用） */
-  background: linear-gradient(180deg, #ade1ff 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #e0f7ff 0%, #ffffff 100%);
 }
 
 /* 砂浜のテーマ (novels.html用) */
 .beach-theme { /* bodyに直接適用 */
   background: 
-    /* 砂浜のきらめきや貝殻のような光 */
-    radial-gradient(circle at 15% 90%, rgba(255, 255, 255, 0.6) 0%, transparent 2%),
-    radial-gradient(circle at 35% 85%, rgba(255, 250, 200, 0.5) 0%, transparent 2.5%),
-    radial-gradient(circle at 65% 92%, rgba(255, 255, 255, 0.6) 0%, transparent 3%),
-    radial-gradient(circle at 85% 80%, rgba(255, 255, 255, 0.4) 0%, transparent 2%),
-    /* 砂浜に続く白い砂の道 */
-    linear-gradient(105deg, transparent 46%, rgba(255, 255, 255, 0.3) 48%, rgba(255, 255, 255, 0.3) 52%, transparent 54%) bottom center / 100% 50% no-repeat,
-    /* 空、海、波打ち際、砂浜の境界 */
-    linear-gradient(to top, #f5e6ca 0%, #fff9e6 35%, #ffffff 42%, #90e0ef 50%, #ade1ff 100%);
+    radial-gradient(circle at 15% 90%, rgba(255, 255, 255, 0.7) 0%, transparent 2%),
+    radial-gradient(circle at 35% 85%, rgba(255, 250, 200, 0.6) 0%, transparent 2.5%),
+    radial-gradient(circle at 65% 92%, rgba(255, 255, 255, 0.7) 0%, transparent 3%),
+    radial-gradient(circle at 85% 80%, rgba(255, 255, 255, 0.5) 0%, transparent 2%),
+    linear-gradient(to top, #fdf6e3 0%, #fffdf5 35%, #ffffff 42%, #caf0f8 50%, #e0f7ff 100%);
+  color: #333;
+}
+
+/* 野原のテーマ (BGM・SE.html用) */
+.field-theme {
+  background: 
+    /* 草原のきらめき */
+    radial-gradient(circle at 10% 85%, rgba(255, 255, 255, 0.6) 0%, transparent 1.5%),
+    radial-gradient(circle at 30% 92%, rgba(255, 255, 255, 0.5) 0%, transparent 2%),
+    radial-gradient(circle at 60% 88%, rgba(255, 255, 255, 0.6) 0%, transparent 1.5%),
+    radial-gradient(circle at 85% 95%, rgba(255, 255, 255, 0.5) 0%, transparent 2%),
+    /* 空、地平線、草原の境界 */
+    linear-gradient(to top, #c7f9cc 0%, #dcfce1 35%, #ffffff 42%, #caf0f8 50%, #e0f7ff 100%);
+  color: #333;
 }
 
 /* 海の中テーマ (read.html用) */
 .underwater-theme {
-  background: 
-    radial-gradient(circle at 50% -20%, rgba(255, 255, 255, 0.4) 0%, transparent 60%),
-    linear-gradient(180deg, #00b4d8 0%, #0077b6 50%, #023e8a 100%);
+  background: #004b8d; /* 背景色を少し明るい青に変更 */
   color: #ffffff;
 }
 
 .underwater-theme .logo { color: #fff; }
 
 .container {
-  max-width: 1000px;
+  max-width: 1200px;
   margin: 0 auto;
   padding: 0 20px;
   min-height: 100vh;
@@ -116,6 +124,41 @@ body {
   to { transform: translateX(calc(100vw + 400px)); }
 }
 
+/* 泡のスタイルとアニメーション */
+.bubbles-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.bubble {
+  position: absolute;
+  bottom: -50px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  filter: blur(2px);
+  animation: rise linear infinite;
+}
+
+.b1 { width: 15px; height: 15px; left: 10%; animation-duration: 8s; }
+.b2 { width: 30px; height: 30px; left: 30%; animation-duration: 12s; animation-delay: 2s; }
+.b3 { width: 20px; height: 20px; left: 50%; animation-duration: 10s; animation-delay: 4s; }
+.b4 { width: 40px; height: 40px; left: 75%; animation-duration: 15s; animation-delay: 1s; }
+.b5 { width: 10px; height: 10px; left: 90%; animation-duration: 7s; animation-delay: 3s; }
+
+@keyframes rise {
+  0% { transform: translateY(0) translateX(0); opacity: 0; }
+  20% { opacity: 0.5; }
+  80% { opacity: 0.5; }
+  100% { transform: translateY(-110vh) translateX(50px); opacity: 0; }
+}
+
 header {
   padding: 20px 0;
 }
@@ -132,6 +175,13 @@ nav {
   color: #2c3e50;
 }
 
+.logo a {
+  color: #2c3e50;
+  text-decoration: none;
+}
+
+.underwater-theme .logo, .underwater-theme .logo a { color: #fff; }
+
 .volume-control {
   display: flex;
   align-items: center;
@@ -147,6 +197,22 @@ nav {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* 音響ライブラリのセクション分け */
+.sound-section {
+  margin-top: 40px;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+}
+
+.category-title {
+  font-size: 1.2rem;
+  color: #2c3e50;
+  margin-bottom: 15px;
+  border-left: 5px solid #3498db;
+  padding-left: 15px;
+}
+
 .volume-icon {
   color: #fff;
   font-size: 1.1rem;
@@ -155,6 +221,37 @@ nav {
 #volume-slider {
   width: 80px;
   cursor: pointer;
+}
+
+/* 音響ライブラリ用のカードスタイル */
+.sound-card {
+  background: rgba(255, 255, 255, 0.4);
+  padding: 20px;
+  border-radius: 15px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80px;
+}
+
+.sound-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 15px;
+}
+
+.sound-card:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(1.05);
+}
+
+.sound-card span {
+  font-weight: bold;
 }
 
 .hero-section {
@@ -193,17 +290,21 @@ h1 {
 
 .reader-section {
   padding: 60px 0;
-  max-width: 700px;
+  width: 100%;
+  max-width: 850px;
   margin: 0 auto;
 }
 
 .reader-content {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1); /* 背景を明るい半透明に変更 */
   padding: 40px;
   border-radius: 20px;
   backdrop-filter: blur(15px);
   line-height: 2.2;
   margin-bottom: 40px;
+  width: 100%; /* 横幅を最初から100%確保 */
+  box-sizing: border-box; /* パディングを含めて幅を計算 */
+  min-height: 500px; /* 本文エリアの枠を最初から大きめに確保 */
 }
 
 .story-title { font-size: 2.2rem; margin-bottom: 5px; text-align: center; color: #fff; }
@@ -269,13 +370,13 @@ h1 {
 }
 
 .story-card {
-  background: rgba(255, 255, 255, 0.2); /* 白文字が見えるよう少し暗めに調整 */
+  background: rgba(255, 255, 255, 0.8);
   padding: 25px;
   border-radius: 20px;
   backdrop-filter: blur(8px);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
   transition: transform 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   flex-direction: column;
 }
@@ -284,7 +385,7 @@ h1 {
   transform: translateY(-5px);
 }
 
-.story-card h3 { margin: 0 0 10px 0; color: #fff; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+.story-card h3 { margin: 0 0 10px 0; color: #2c3e50; }
 .story-author { font-size: 0.9rem; color: #7f8c8d; margin-bottom: 15px; }
 .story-desc { font-size: 0.95rem; color: #555; margin-bottom: 20px; flex-grow: 1; }
 
@@ -343,9 +444,93 @@ h1 {
   /* backdrop-filter: blur(5px); */ /* 必要であれば背景をぼかす */
 }
 
+/* エディタレイアウト */
+.editor-container {
+  display: flex;
+  gap: 40px;
+  margin-top: 20px;
+  align-items: flex-start;
+}
+
+.editor-main {
+  flex: 1;
+}
+
+.input-row {
+  display: flex;
+  gap: 15px;
+}
+
+.editor-main input,
+.editor-main textarea {
+  width: 100%;
+  padding: 15px 25px;
+  border: 1px solid #e0e0e0;
+  border-radius: 30px; /* 丸っこいデザイン */
+  font-size: 1rem;
+  font-family: inherit;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.9);
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.editor-main input:focus,
+.editor-main textarea:focus {
+  border-color: #3498db;
+}
+
+.editor-sidebar {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 50px;
+  position: sticky;
+  top: 20px;
+}
+
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.btn-long {
+  width: 100%;
+  padding: 12px 30px;
+  text-align: center;
+}
+
 footer {
   text-align: center;
   padding: 20px 0;
   font-size: 0.8rem;
   color: #bdc3c7;
+}
+
+#sound-indicator-bar {
+  position: absolute;
+  left: 10px;
+  right: auto;
+  top: 0;
+  width: 6px;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+  overflow: hidden;
+  pointer-events: none;
+  border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.sound-marker-container {
+  position: relative;
+  width: 100%;
+}
+
+.sound-marker {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  border-radius: 2px;
 }

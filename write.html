@@ -1,101 +1,71 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>小説を書く - SoundNovel</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="write.css">
+    <meta charset="UTF-8">
+    <title>作品を作る - soundnovel</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
-  <!-- 共通：音量調節バー -->
-  <div class="volume-control">
-    <span class="volume-icon">♪</span>
-    <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.4">
-  </div>
-
-  <div class="container camera-down-enter editor-container">
-    <!-- 共通：背景の雲 -->
-    <div class="clouds-container">
-      <div class="cloud c1"></div>
-      <div class="cloud c2"></div>
-      <div class="cloud c3"></div>
+    <div class="volume-control">
+        <span class="volume-icon">♪</span>
+        <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.4">
     </div>
 
-    <header>
-      <nav>
-        <div class="logo"><a href="index.html" id="home-btn" style="text-decoration: none; color: inherit;">SoundNovel</a></div>
-      </nav>
-    </header>
+    <div class="clouds-container">
+        <div class="cloud c1"></div>
+        <div class="cloud c2"></div>
+        <div class="cloud c3"></div>
+    </div>
 
-    <h1>新しい物語を紡ぐ</h1>
+    <div class="container">
+        <header>
+            <nav>
+                <div class="logo"><a href="index.html">soundnovel</a></div>
+            </nav>
+        </header>
 
-    <main class="editor-layout">
-      <!-- 左：本文エディタ -->
-      <section class="story-panel">
-        <h2>本文</h2>
-        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-          <input type="text" id="editor-title" placeholder="タイトルを入力..." style="flex: 1; padding: 12px; border: none; border-radius: 15px; font-size: 1.1rem; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
-          <input type="text" id="editor-author" placeholder="著者名..." style="flex: 1; padding: 12px; border: none; border-radius: 15px; font-size: 1rem; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);">
+        <div class="editor-container">
+            <!-- 左側: 入力エリア -->
+            <div class="editor-main">
+                <div class="input-row">
+                    <input type="text" id="editor-title" placeholder="タイトル">
+                    <input type="text" id="editor-author" placeholder="著作者名">
+                </div>
+                <textarea id="editor-preface" placeholder="前置き"></textarea>
+                <div style="position: relative;">
+                    <textarea id="editor-body" placeholder="本文" style="height: 500px;"></textarea>
+                    <!-- 音響インジケーター -->
+                    <div id="sound-indicator-bar"></div>
+                </div>
+            </div>
+
+            <!-- 右側: 操作エリア -->
+            <div class="editor-sidebar">
+                <div class="sidebar-group">
+                    <button id="add-sound-btn" class="btn secondary btn-long">BGM・SEをつける</button>
+                    <button id="open-sound-library" class="btn secondary btn-long">BGM・SE一覧</button>
+                </div>
+                <div class="sidebar-group bottom-actions">
+                    <button id="draft-btn" class="btn secondary btn-long">下書き保存</button>
+                    <button id="publish-btn" class="btn primary btn-long">投稿</button>
+                </div>
+
+                <!-- 音響履歴 -->
+                <div class="sidebar-group sound-history-section" style="margin-top: 20px;">
+                    <p style="font-size: 0.85rem; color: #7f8c8d; margin-bottom: 10px; padding-left: 5px;">文中の音響履歴（最新6件）</p>
+                    <div id="sound-history-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+                </div>
+            </div>
         </div>
-        <textarea id="editor-preface" placeholder="前書きを入力（任意）..." style="width: 100%; height: 80px; padding: 12px; margin-bottom: 20px; border: none; border-radius: 15px; font-size: 1rem; outline: none; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); resize: none; font-family: inherit;"></textarea>
-        <div class="editor-inner-container">
-          <div id="sound-indicator-bar">
-            <div class="sound-marker-container"></div>
-          </div>
-          <textarea placeholder="ここに物語を書いてください..."></textarea>
-        </div>
-      </section>
 
-      <!-- 右：サイドパネル -->
-      <div class="right-panel">
-        <section class="sound-panel">
-          <h2>音をつける</h2>
-          <p class="guide">文章を選択してBGMやSEを設定</p>
-          <button id="add-sound-btn" class="sound-button">BGM・SEを追加</button>
-          <button id="open-sound-library" class="sound-button" style="margin-top: 10px;">BGM / SE 一覧を開く</button>
-        </section>
+        <footer>
+            <a href="index.html">ホームへ戻る</a>
+        </footer>
+    </div>
 
-        <section class="library-panel">
-          <h2>保存・公開</h2>
-          <button class="sound-button">下書き保存</button>
-          <button class="sound-button primary" style="color: black;">投稿</button>
-        </section>
-      </div>
-    </main>
-
-    <footer>
-      <p>&copy; SoundNovel. Music by <a href="https://az-ho.org/" target="_blank" rel="noopener noreferrer" style="color: inherit;">独り音</a> / SE by <a href="https://soundeffect-lab.info/" target="_blank" rel="noopener noreferrer" style="color: inherit;">効果音ラボ</a></p>
-    </footer>
-  </div>
-
-  <!-- BGM（ホームと同じものを継続） -->
-  <audio id="audio-home" src="audio/00-home.mp3" loop></audio>
-  <audio id="audio-haru" src="audio/01-haru.mp3" loop></audio>
-  <audio id="audio-natu" src="audio/01-natu.mp3" loop></audio>
-  <audio id="audio-aki" src="audio/01-aki.mp3" loop></audio>
-  <audio id="audio-huyu" src="audio/01-huyu.mp3" loop></audio>
-  <audio id="audio-ame" src="audio/02-ame.mp3" loop></audio>
-  <audio id="audio-kaze" src="audio/02-kaze.mp3" loop></audio>
-  <audio id="audio-gakkou" src="audio/03-gakkou.mp3" loop></audio>
-  <audio id="audio-tokai" src="audio/03-tokai.mp3" loop></audio>
-  <audio id="audio-inaka" src="audio/03-inaka.mp3" loop></audio>
-  <audio id="audio-mori" src="audio/03-mori.mp3" loop></audio>
-  <audio id="audio-umi" src="audio/03-umi.mp3" loop></audio>
-  <audio id="audio-sentou" src="audio/04-sentou.mp3" loop></audio>
-  <audio id="audio-bouken" src="audio/04-bouken.mp3" loop></audio>
-  <audio id="audio-doa" src="audio/10-doa.mp3"></audio>
-  <audio id="audio-aruku" src="audio/10-aruku.mp3"></audio>
-  <audio id="audio-densya" src="audio/10-densya.mp3"></audio>
-  <audio id="audio-hasiru" src="audio/10-hasiru.mp3"></audio>
-  <audio id="audio-mati" src="audio/10-mati.mp3"></audio>
-  <audio id="audio-natu-se" src="audio/10-natu.mp3"></audio>
-  <audio id="audio-nokku" src="audio/10-nokku.mp3"></audio>
-  <audio id="audio-tokei" src="audio/10-tokei.mp3"></audio>
-  <audio id="audio-umi-se" src="audio/10-umi.mp3"></audio>
-  <audio id="audio-mekuru" src="audio/10-mekuru.mp3"></audio>
-
-  <script src="script.js"></script>
+    <audio id="audio-home" loop src="audio/00-home.mp3"></audio>
+    <audio id="audio-mekuru" src="audio/10-mekuru.mp3"></audio>
+    <script src="script.js"></script>
+    <script type="module" src="firebase.js"></script>
 </body>
 </html>

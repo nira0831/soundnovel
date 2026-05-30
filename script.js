@@ -44,35 +44,44 @@ const startHomeBgm = () => {
     return;
   }
 
-  // 既に再生中なら何もしない
-  if (!homeAudio.paused) return;
+    // 閲覧ページではホームBGMを再生しない
+    if (document.querySelector('.reader-section')) {
+        hideAudioHint();
+        return;
+    }
 
-    const savedVolume = localStorage.getItem('globalVolume') || 0.4;
+    // 既に再生中なら何もしない
+    if (!homeAudio.paused) return;
+
+    const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
     homeAudio.volume = savedVolume;
 
     // 前のページから引き継いだ再生時間をセット
     const savedTime = localStorage.getItem('bgm_time');
     if (savedTime && !homeAudio.dataset.timeSet) {
-      homeAudio.currentTime = parseFloat(savedTime);
-      homeAudio.dataset.timeSet = "true"; // 二重セット防止
+        const setTime = () => {
+            homeAudio.currentTime = parseFloat(savedTime);
+            homeAudio.dataset.timeSet = "true";
+        };
+        if (homeAudio.readyState >= 1) {
+            setTime();
+        } else {
+            homeAudio.addEventListener('loadedmetadata', setTime, { once: true });
+        }
     }
 
     homeAudio.play()
-      .then(() => {
-        // 成功した場合
-        audioPlayedSuccessfully = true;
-        localStorage.setItem('audio_permitted', 'true');
-        hideAudioHint();
-        // 成功したら、自動再生試行のイベントリスナーは不要なので解除
-        window.removeEventListener('click', startHomeBgm);
-        window.removeEventListener('keydown', startHomeBgm);
-      })
-      .catch(e => {
-        // 失敗した場合
-        console.log("BGM playback failed:", e);
-        // どのような理由であれ再生に失敗したらヒントを表示
-        showAudioHint();
-      });
+        .then(() => {
+            audioPlayedSuccessfully = true;
+            localStorage.setItem('audio_permitted', 'true');
+            hideAudioHint();
+            window.removeEventListener('click', startHomeBgm);
+            window.removeEventListener('keydown', startHomeBgm);
+        })
+        .catch(e => {
+            console.log("BGM playback failed:", e);
+            showAudioHint();
+        });
 };
 
 // ページ読み込み時に自動再生を試みる
@@ -89,7 +98,8 @@ window.addEventListener('keydown', startHomeBgm);
 // 遷移時に現在の再生時間を保存する関数
 const saveBgmTime = () => {
   const homeAudio = document.getElementById('audio-home');
-  if (homeAudio) {
+  // 再生中、または自動再生待ちの状態であれば時間を保存する
+  if (homeAudio && (homeAudio.currentTime > 0 || localStorage.getItem('bgm_time'))) {
     localStorage.setItem('bgm_time', homeAudio.currentTime);
   }
 };
@@ -98,11 +108,15 @@ const saveBgmTime = () => {
 const playPageTurn = () => {
   const mekuru = document.getElementById('audio-mekuru');
   if (mekuru) {
-    const savedVolume = localStorage.getItem('globalVolume') || 0.4;
+    const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
     mekuru.volume = savedVolume;
     mekuru.play().catch(e => console.log("SE playback failed:", e));
   }
 };
+
+// firebase.js からも呼べるようにグローバルに公開
+window.saveBgmTime = saveBgmTime;
+window.playPageTurn = playPageTurn;
 
 const readBtn = document.getElementById('read-btn');
 if (readBtn) {
@@ -112,7 +126,7 @@ if (readBtn) {
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      location.href = 'read/novels.html';
+      location.href = 'novels.html';
     }, 700);
   });
 }
@@ -125,7 +139,7 @@ if (writeBtn) {
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      location.href = 'kaku.html';
+      location.href = 'write.html';
     }, 700);
   });
 }
@@ -138,7 +152,7 @@ if (soundLibraryBtn) {
     const titleInput = document.getElementById('editor-title');
     const authorInput = document.getElementById('editor-author');
     const prefaceInput = document.getElementById('editor-preface');
-    const contentInput = document.querySelector('.editor-inner-container textarea');
+    const contentInput = document.getElementById('editor-body');
 
     const draft = {
       title: titleInput ? titleInput.value : '',
@@ -153,9 +167,8 @@ if (soundLibraryBtn) {
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      // ファイルの場所（ルートかwriteフォルダ内か）を判定して遷移
-      const isInWriteFolder = window.location.pathname.includes('/write/');
-      location.href = isInWriteFolder ? 'BGM・SE.html' : 'write/BGM・SE.html';
+      // ルートの BGM・SE.html へ遷移
+      location.href = 'BGM・SE.html';
     }, 700);
   });
 }
@@ -168,9 +181,8 @@ document.querySelectorAll('#back-to-editor, #back-to-editor-top').forEach(btn =>
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      // 現在の場所が write フォルダ内なら一つ上の kaku.html へ
-      const isInSubFolder = window.location.pathname.includes('/write/') || window.location.pathname.includes('/read/');
-      location.href = isInSubFolder ? '../kaku.html' : 'kaku.html';
+      // ルートの write.html へ戻る
+      location.href = 'write.html';
     }, 700);
   });
 });
@@ -181,62 +193,59 @@ document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
     // 静的な作品（終電の後など）を読む場合は、動的IDをクリアする
     localStorage.removeItem('current_story_id');
     
+    saveBgmTime();
     const container = document.querySelector('.container');
     if (container) container.classList.add('camera-down-leave');
     playPageTurn();
-    // 小説を読む時はBGMの続きは不要なのでリセット
-    localStorage.removeItem('bgm_time');
     setTimeout(() => {
-      // index.htmlからなら read.html、read/novels.htmlからなら ../read.html
-      const isInReadFolder = window.location.pathname.includes('/read/');
-      location.href = isInReadFolder ? '../read.html' : 'read.html';
+      // 全てルートの read.html を参照
+      location.href = 'read.html';
     }, 700);
   });
 });
 
 // --- 投稿機能の実装 ---
-const publishBtn = document.querySelector('.library-panel .sound-button.primary');
+const publishBtn = document.getElementById('publish-btn');
 if (publishBtn) {
   publishBtn.addEventListener('click', () => {
     const titleInput = document.getElementById('editor-title');
     const authorInput = document.getElementById('editor-author');
     const prefaceInput = document.getElementById('editor-preface');
-    const contentInput = document.querySelector('.editor-inner-container textarea');
+    const contentInput = document.getElementById('editor-body');
 
     if (!contentInput.value.trim()) {
       alert('本文を入力してください。');
       return;
     }
 
-    const stories = JSON.parse(localStorage.getItem('user_stories') || '[]');
     const newStory = {
-      id: Date.now(),
       title: titleInput.value.trim() || '無題の物語',
       author: authorInput.value.trim() || '名無しさん',
-      desc: contentInput.value.substring(0, 40).replace(/\n/g, ' ') + '...',
+      // 作品一覧の著作者名の下に表示する文として「前置き」を使用
+      desc: prefaceInput ? prefaceInput.value.trim() : '',
       preface: prefaceInput ? prefaceInput.value : '',
       content: contentInput.value
     };
 
-    stories.push(newStory);
-    localStorage.setItem('user_stories', JSON.stringify(stories));
+    // Firebase保存用のカスタムイベントを発火
+    const firebaseEvent = new CustomEvent('publishStory', { detail: newStory });
+    window.dispatchEvent(firebaseEvent);
 
-    alert('物語を投稿しました！');
-    localStorage.removeItem('draft_story');
-    playPageTurn();
-    const isInSubFolder = window.location.pathname.includes('/write/');
-    location.href = isInSubFolder ? '../read/novels.html' : 'read/novels.html';
+    // ローカルストレージへの保存とページ遷移はfirebase.js側でFirebase保存完了後に実行される
+    // ここではFirebaseへのイベント発火のみを行う
+    // ローカルストレージへの保存はFirebaseへの保存が成功した場合のみ行うべきなので、firebase.jsに移動
+    // playPageTurn(); // ページめくり音は遷移時に鳴らすため、firebase.js側で実行
   });
 }
 
 // --- 下書き保存機能の実装 ---
-const draftBtn = document.querySelector('.library-panel .sound-button:not(.primary)');
+const draftBtn = document.getElementById('draft-btn');
 if (draftBtn) {
   draftBtn.addEventListener('click', () => {
     const titleInput = document.getElementById('editor-title');
     const authorInput = document.getElementById('editor-author');
     const prefaceInput = document.getElementById('editor-preface');
-    const contentInput = document.querySelector('.editor-inner-container textarea');
+    const contentInput = document.getElementById('editor-body');
 
     const draft = {
       title: titleInput ? titleInput.value : '',
@@ -252,16 +261,20 @@ if (draftBtn) {
   const titleInput = document.getElementById('editor-title');
   if (titleInput) {
     const savedDraft = localStorage.getItem('draft_story');
-    if (savedDraft) {
-      const draft = JSON.parse(savedDraft);
-      titleInput.value = draft.title || '';
-      const authorInput = document.getElementById('editor-author');
-      if (authorInput) authorInput.value = draft.author || '';
-      const prefaceInput = document.getElementById('editor-preface');
-      if (prefaceInput) prefaceInput.value = draft.preface || '';
-      const contentInput = document.querySelector('.editor-inner-container textarea');
-      if (contentInput) contentInput.value = draft.content || '';
-      updateSoundIndicator();
+    if (savedDraft && savedDraft !== "undefined") {
+      try {
+        const draft = JSON.parse(savedDraft);
+        titleInput.value = draft.title || '';
+        const authorInput = document.getElementById('editor-author');
+        if (authorInput) authorInput.value = draft.author || '';
+        const prefaceInput = document.getElementById('editor-preface');
+        if (prefaceInput) prefaceInput.value = draft.preface || '';
+        const contentInput = document.getElementById('editor-body');
+        if (contentInput) contentInput.value = draft.content || '';
+        setTimeout(updateSoundIndicator, 0); // 描画後に実行
+      } catch (e) {
+        console.error("下書きの復元に失敗しました。データが壊れている可能性があります:", e);
+      }
     }
   }
 }
@@ -269,21 +282,37 @@ if (draftBtn) {
 // --- 作品一覧の動的表示 ---
 const libraryGrid = document.querySelector('.library-section .story-grid');
 if (libraryGrid) {
-  const userStories = JSON.parse(localStorage.getItem('user_stories') || '[]');
-  userStories.forEach(story => {
-    const card = document.createElement('div');
-    card.className = 'story-card';
-    card.innerHTML = `
-      <h3>${story.title}</h3>
-      <p class="story-author">by ${story.author}</p>
-      <p class="story-desc">${story.desc}</p>
-      <div class="card-buttons" style="display: flex; gap: 10px;">
-        <button class="btn primary user-story-btn" data-id="${story.id}">読む</button>
-        <button class="btn danger delete-story-btn" data-id="${story.id}">削除</button>
-      </div>
-    `;
-    libraryGrid.appendChild(card);
-  });
+  const loadStories = async () => {
+    try {
+      const q = window.query(window.collection(window.db, 'stories'), window.orderBy('createdAt', 'desc'));
+      const querySnapshot = await window.getDocs(q);
+      
+      querySnapshot.forEach((doc) => {
+        const story = doc.data();
+        const storyId = doc.id;
+        const card = document.createElement('div');
+        card.className = 'story-card';
+        
+        let descText = (story.preface && story.preface.trim() !== "") ? story.preface : "";
+        let cleanDesc = descText.replace(/\[(BGM|SE|BG):.+?\]/g, '').replace(/\n/g, ' ');
+        if (cleanDesc.length > 80) cleanDesc = cleanDesc.substring(0, 80) + '...';
+
+        card.innerHTML = `
+          <h3>${story.title}</h3>
+          <p class="story-author">by ${story.author}</p>
+          <p class="story-desc">${cleanDesc}</p>
+          <div class="card-buttons" style="display: flex; gap: 10px;">
+            <button class="btn primary user-story-btn" data-id="${storyId}">読む</button>
+            <button class="btn danger delete-story-btn" data-id="${storyId}">削除</button>
+          </div>
+        `;
+        libraryGrid.appendChild(card);
+      });
+    } catch (e) {
+      console.error("作品の取得に失敗しました:", e);
+    }
+  };
+  loadStories();
 
   // 動的に生成されたボタンへのクリックイベント（委譲）
   libraryGrid.addEventListener('click', (e) => {
@@ -294,23 +323,23 @@ if (libraryGrid) {
       const container = document.querySelector('.container');
       if (container) container.classList.add('camera-down-leave');
       
+      saveBgmTime();
       playPageTurn();
-      localStorage.removeItem('bgm_time');
       
       setTimeout(() => {
-        location.href = '../read.html'; // novels.htmlはreadフォルダ内なので一つ上へ
+        location.href = 'read.html';
       }, 700);
     }
 
     if (e.target.classList.contains('delete-story-btn')) {
-      if (confirm('この物語を削除してもよろしいですか？')) {
+      if (confirm('この物語をFirebaseから削除してもよろしいですか？')) {
         const storyId = e.target.dataset.id;
-        let stories = JSON.parse(localStorage.getItem('user_stories') || '[]');
-        stories = stories.filter(s => s.id != storyId);
-        localStorage.setItem('user_stories', JSON.stringify(stories));
-        
-        // 画面からカードを削除
-        e.target.closest('.story-card').remove();
+        window.deleteDoc(window.doc(window.db, 'stories', storyId)).then(() => {
+          e.target.closest('.story-card').remove();
+        }).catch(err => {
+          alert("削除に失敗しました");
+          console.error(err);
+        });
         
         playPageTurn();
       }
@@ -327,7 +356,7 @@ if (backBtn) {
     playPageTurn();
     saveBgmTime();
     setTimeout(() => {
-      location.href = 'read/novels.html'; // rootのread.htmlからreadフォルダ内へ
+      location.href = 'novels.html';
     }, 700);
   });
 }
@@ -352,7 +381,7 @@ document.querySelectorAll('.logo a').forEach(link => {
 // 音量調節のロジック
 const volumeSlider = document.getElementById('volume-slider');
 if (volumeSlider) {
-  const savedVolume = localStorage.getItem('globalVolume') || 0.4;
+  const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
   volumeSlider.value = savedVolume;
 
   volumeSlider.addEventListener('input', (e) => {
@@ -367,56 +396,66 @@ if (volumeSlider) {
 // エディタ画面：サウンドカードのクリックで音声を再生
 document.querySelectorAll('.sound-card').forEach(card => {
   card.addEventListener('click', () => {
-    const audioId = card.dataset.audio;
+    let audioId = card.dataset.audio;
     if (!audioId) return;
 
-    // IDをクリップボードにコピー
-    navigator.clipboard.writeText(audioId).then(() => {
-      const originalText = card.innerHTML;
-      card.innerHTML = `<span style="font-size: 0.8rem; color: #27ae60;">コピー完了！</span>`;
-      setTimeout(() => {
-        card.innerHTML = originalText;
-      }, 1000);
-    });
-
-    const targetAudio = document.getElementById(audioId);
+    // 「00-home」のカードが押された時は、共通の背景BGMタグ（audio-home）を操作する
+    const isHome = (audioId === '00-home' || audioId === 'audio-home');
+    const targetAudio = document.getElementById(isHome ? 'audio-home' : audioId);
     if (!targetAudio) return;
+    
+    const currentAudioId = isHome ? 'audio-home' : audioId;
+
+    // IDをクリップボードにコピー
+    navigator.clipboard.writeText(currentAudioId).then(() => {
+        const originalText = card.innerHTML;
+        card.innerHTML = `<span style="font-size: 0.8rem; color: #27ae60;">IDコピー & 再生中</span>`;
+        card.style.borderColor = '#3498db';
+        setTimeout(() => {
+            card.innerHTML = originalText;
+            card.style.borderColor = '';
+        }, 1500);
+    });
 
     // 現在再生中のすべての音声を停止して切り替える
     document.querySelectorAll('audio').forEach(audio => {
-      audio.pause();
-      audio.currentTime = 0;
+      if (audio !== targetAudio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
     });
 
-    const savedVolume = localStorage.getItem('globalVolume') || 0.4;
+    const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
     targetAudio.volume = savedVolume;
     targetAudio.play().catch(e => console.log("Audio play failed:", e));
   });
 });
 
-// エディタ画面：BGM/SEタグ挿入機能
-const addSoundBtn = document.getElementById('add-sound-btn');
-
-const insertSoundTag = (type) => {
-  const textarea = document.querySelector('.editor-inner-container textarea');
-  if (!textarea) return;
+function insertSoundTag(type) {
+  const textarea = document.getElementById('editor-body');
+  if (!textarea) {
+    console.error("エディタが見つかりません。");
+    return;
+  }
   
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
   const text = textarea.value;
 
-  let promptMsg = `${type}のIDを入力してください（一覧でコピーしたIDを貼り付けてください）`;
-  let defaultVal = 'audio-';
-  
-  if (type === 'BG') {
-    promptMsg = "背景の色（例: black, #333）または設定したいクラス名を入力してください。";
-    defaultVal = 'black';
+  let id;
+  if (type === 'AUTO') {
+    id = prompt("音響IDを入力してください（一覧でコピーしたIDを貼り付けてください）");
+  } else {
+    const promptMsg = type === 'BG' ? "背景の色（例: black, #333）または設定したいクラス名を入力してください。" : `${type}のIDを入力してください`;
+    id = prompt(promptMsg, type === 'BG' ? 'black' : 'audio-');
   }
-
-  const id = prompt(promptMsg, defaultVal);
   if (!id) return;
+
+  // もしタグごと貼り付けられた場合 ([BGM:xxx]など) はID部分だけ抜き出す
+  const cleanId = id.replace(/\[(BGM|SE|BG):|\]/g, '').trim();
   
-  const tag = `[${type}:${id}]`;
+  const finalType = (type === 'AUTO') ? (cleanId.startsWith('10-') ? 'SE' : 'BGM') : type;
+  const tag = `[${finalType}:${cleanId}]`;
   const selectedText = text.substring(start, end);
 
   let taggedText;
@@ -435,55 +474,63 @@ const insertSoundTag = (type) => {
   const newPos = start + taggedText.length;
   textarea.setSelectionRange(newPos, newPos);
   updateSoundIndicator();
-};
-
-if (addSoundBtn) {
-  addSoundBtn.addEventListener('click', () => insertSoundTag('BGM'));
 }
+
+// エディタ画面のボタン初期化
+// DOMContentLoaded内で実行することで、HTMLの読み込みを確実に待ちます
+document.addEventListener('DOMContentLoaded', () => {
+  const addSoundBtn = document.getElementById('add-sound-btn');
+  if (addSoundBtn) {
+    addSoundBtn.onclick = () => {
+      insertSoundTag('AUTO');
+    };
+  }
+});
 
 // 読書画面：一行ずつ表示する演出
 const textBody = document.querySelector('.text-body');
 if (textBody) {
-  // --- 保存された物語の読み込み ---
-  const storyId = localStorage.getItem('current_story_id');
-  if (storyId) {
-    const stories = JSON.parse(localStorage.getItem('user_stories') || '[]');
-    const story = stories.find(s => s.id == storyId);
-    
-    if (story) {
-      // タイトルと著者を書き換え
-      const titleEl = document.querySelector('.story-title');
-      const authorEl = document.querySelector('.story-author-name');
-      if (titleEl) titleEl.textContent = story.title;
-      if (authorEl) authorEl.textContent = story.author + ' 著';
+  (async () => {
+    // --- Firebaseから物語を読み込み ---
+    const storyId = localStorage.getItem('current_story_id');
+    if (storyId) {
+      try {
+        const docSnap = await window.getDoc(window.doc(window.db, 'stories', storyId));
+        
+        if (docSnap.exists()) {
+          const story = docSnap.data();
+          // タイトルと著者を書き換え
+          const titleEl = document.querySelector('.story-title');
+          const authorEl = document.querySelector('.story-author-name');
+          if (titleEl) titleEl.textContent = story.title;
+          if (authorEl) authorEl.textContent = story.author + ' 著';
 
-      // 本文を入れ替え
-      const endMarker = document.getElementById('story-end-marker');
-      textBody.innerHTML = ''; // 既存の「終電の後」を消去
-      
-      const allLines = [];
-      if (story.preface) allLines.push(...story.preface.split('\n').filter(l => l.trim()));
-      allLines.push(...story.content.split('\n').filter(l => l.trim()));
+          // 本文を入れ替え
+          const endMarker = document.getElementById('story-end-marker');
+          textBody.innerHTML = ''; 
+          
+          const allLines = [];
+          allLines.push(...story.content.split('\n').filter(l => l.trim()));
 
-      allLines.forEach(lineText => {
-        const p = document.createElement('p');
-        p.textContent = lineText;
-        textBody.appendChild(p);
-      });
-      if (endMarker) textBody.appendChild(endMarker);
+          allLines.forEach(lineText => {
+            const p = document.createElement('p');
+            p.textContent = lineText;
+            textBody.appendChild(p);
+          });
+          if (endMarker) textBody.appendChild(endMarker);
+          
+          // 行のリストを再取得して初期化
+          lines = textBody.querySelectorAll('p');
+        }
+      } catch (e) {
+        console.error("物語の取得に失敗しました:", e);
+      }
     }
-  }
+  })();
 
-  const lines = textBody.querySelectorAll('p');
+  // 行のリストを取得
+  let lines = textBody.querySelectorAll('p');
   let currentLineIndex = 0;
-
-  // 空間を2行分だけ用意しておく（中身は見せない）
-  for (let i = 0; i < 2; i++) {
-    if (currentLineIndex < lines.length) {
-      lines[i].classList.add('is-placeholder');
-    }
-  }
-  currentLineIndex = 0; // 最初のクリックで1行目から表示させる
 
   // フェードアウト関数
   const fadeOut = (audio, duration = 2000) => {
@@ -528,15 +575,21 @@ if (textBody) {
       const hasSoundEffect = tagRegex.test(currentLine.textContent);
       tagRegex.lastIndex = 0; // test後のインデックスをリセット
 
-      // 音声タグ（BGMまたはSE）が含まれていない文の場合、再生中の音声をフェードアウトさせる
-      const hasAudioTag = /\[(BGM|SE):.+?\]/.test(currentLine.textContent);
-      if (!hasAudioTag) {
-        document.querySelectorAll('audio').forEach(a => {
-          if (a.id !== 'audio-home' && a.id !== 'audio-mekuru' && !a.paused && a.volume > 0) {
+      // 現在の行に指定されていない音響（BGM/SE）をすべてフェードアウト
+      const currentLineTags = [];
+      let m;
+      const audioSearchRegex = /\[(BGM|SE):(.+?)\]/g;
+      while ((m = audioSearchRegex.exec(currentLine.textContent)) !== null) {
+        currentLineTags.push(m[2]);
+      }
+
+      document.querySelectorAll('audio').forEach(a => {
+        if (a.id !== 'audio-home' && a.id !== 'audio-mekuru' && !currentLineTags.includes(a.id)) {
+          if (!a.paused && a.volume > 0) {
             fadeOut(a, 1000);
           }
-        });
-      }
+        }
+      });
 
       const originalText = currentLine.textContent;
       let match;
@@ -577,6 +630,14 @@ if (textBody) {
       // 表示からタグを消去
       currentLine.textContent = originalText.replace(tagRegex, '');
 
+      // タグを除去した結果、空行になった場合は自動で次へ（演出のみの行を飛ばす）
+      if (currentLine.textContent.trim() === "" && currentLineIndex < lines.length - 1) {
+        currentLine.style.display = 'none'; // スペースを取らないように隠す
+        currentLineIndex++;
+        showNextLine();
+        return;
+      }
+
       // 新しい行が画面の中央に来るように自動スクロール
       currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
       currentLineIndex++;
@@ -587,6 +648,7 @@ if (textBody) {
         if (endMarker) {
           setTimeout(() => {
             endMarker.classList.add('is-visible');
+            endMarker.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }, 1200); // 1.2秒待ってからゆっくり表示
         }
       }
@@ -611,7 +673,7 @@ if (textBody) {
 
 // --- サウンドインジケーター（右側のバー）の処理 ---
 function updateSoundIndicator() {
-  const textarea = document.querySelector('.editor-inner-container textarea');
+  const textarea = document.getElementById('editor-body');
   const bar = document.getElementById('sound-indicator-bar');
   if (!textarea || !bar) return;
 
@@ -627,9 +689,9 @@ function updateSoundIndicator() {
   const lines = text.split('\n');
   
   // 設定値 (CSSのfont-sizeとline-heightに合わせる)
-  const fontSize = 22;
-  const lineHeight = fontSize * 1.5; // 33px
-  const paddingTop = 20; // 文字と同じ位置（中央付近）になるよう調整
+  const fontSize = 16; // style.cssの1remに相当
+  const lineHeight = fontSize * 1.6; // bodyのline-height 1.6に相当
+  const paddingTop = 15; // textareaのpadding-top 15pxに相当
 
   container.innerHTML = '';
   // スクロール位置を同期
@@ -665,10 +727,13 @@ function updateSoundIndicator() {
       container.appendChild(marker);
     }
   });
+
+  // 履歴の表示も更新
+  updateSoundHistory();
 }
 
 // エディタが存在する場合の初期化と入力監視
-const editorTextArea = document.querySelector('.editor-inner-container textarea');
+const editorTextArea = document.getElementById('editor-body');
 if (editorTextArea) {
   editorTextArea.addEventListener('input', updateSoundIndicator);
   editorTextArea.addEventListener('scroll', updateSoundIndicator);
