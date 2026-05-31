@@ -979,6 +979,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // 読書画面：一行ずつ表示する演出
 const textBody = document.querySelector('.text-body');
 if (textBody) {
+  const currentId = localStorage.getItem('current_story_id');
+  // 動的作品の読み込み待ち中に「終電の後」が表示されないよう、UIを即座に初期化する
+  if (currentId) {
+    const titleEl = document.querySelector('.story-title');
+    const authorEl = document.querySelector('.story-author-name');
+    if (titleEl) titleEl.textContent = '読み込み中...';
+    if (authorEl) authorEl.textContent = '';
+    textBody.innerHTML = ''; // 本文を一旦クリア
+  }
+
   // いいねボタンの状態を更新する関数
   const updateReaderLikeIcons = (storyId, likedBy) => {
     const user = window.auth ? window.auth.currentUser : null;
@@ -1036,8 +1046,14 @@ if (textBody) {
           if (titleEl) titleEl.textContent = story.title;
           if (authorEl) authorEl.textContent = story.author + ' 著';
 
-          // 本文を入れ替え
-          const endMarker = document.getElementById('story-end-marker');
+          // 本文を入れ替え（マーカーを保持、または新規作成）
+          let endMarker = document.getElementById('story-end-marker');
+          if (!endMarker) {
+            endMarker = document.createElement('p');
+            endMarker.id = 'story-end-marker';
+            endMarker.className = 'end-marker';
+            endMarker.textContent = 'END';
+          }
           textBody.innerHTML = ''; 
           
           const allLines = [];
@@ -1048,7 +1064,7 @@ if (textBody) {
             p.textContent = lineText;
             textBody.appendChild(p);
           });
-          if (endMarker) textBody.appendChild(endMarker);
+          textBody.appendChild(endMarker);
           
           // 行のリストを再取得して初期化
           lines = textBody.querySelectorAll('p');
