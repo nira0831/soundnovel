@@ -38,6 +38,36 @@ const injectResponsiveStyles = () => {
     #login-dropdown .menu-item:hover { background: #333; }
     #login-dropdown .menu-item.danger { color: #ff6b6b; border-top: 1px solid #333; }
 
+    /* 自作モーダルのスタイル（全デバイス共通） */
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85); z-index: 9999;
+      display: flex; align-items: center; justify-content: center;
+      backdrop-filter: blur(6px);
+    }
+    .modal-box {
+      background: #1a1a1a; border: 2px solid #a5d6a7; border-radius: 20px;
+      padding: 30px; width: 95%; max-width: 420px; color: #eee;
+      box-shadow: 0 0 50px rgba(0,0,0,1), 0 0 20px rgba(165, 214, 167, 0.2); 
+      text-align: center;
+      animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalFadeIn { 
+      from { opacity: 0; transform: scale(0.9); } 
+      to { opacity: 1; transform: scale(1); } 
+    }
+    .modal-message { margin-bottom: 20px; line-height: 1.5; font-size: 0.95rem; }
+    .modal-input {
+      width: 100%; padding: 12px; margin-bottom: 20px; border-radius: 8px;
+      border: 1px solid #444; background: #111; color: #fff; box-sizing: border-box;
+    }
+    .modal-btns { display: flex; gap: 10px; justify-content: center; }
+    .modal-btns .btn { flex: 1; padding: 10px; border-radius: 8px; cursor: pointer; border: none; font-size: 0.9rem; transition: opacity 0.2s; }
+    .modal-btns .btn:hover { opacity: 0.8; }
+    .modal-btns .btn-ok { background: #2980b9; color: white; }
+    .modal-btns .btn-cancel { background: #444; color: #ccc; }
+    .modal-btns .btn-danger { background: #c0392b; color: white; }
+
     /* 読書画面用いいねボタン */
     .reader-like-btn {
       background: none;
@@ -421,6 +451,68 @@ document.querySelectorAll('#back-to-editor, #back-to-editor-top').forEach(btn =>
   });
 });
 
+// --- 自作ダイアログ機能 ---
+const customDialog = {
+  show: (type, message, defaultValue = '') => {
+    return new Promise((resolve) => {
+      const overlay = document.createElement('div');
+      overlay.className = 'modal-overlay';
+      
+      let inputHtml = '';
+      if (type === 'prompt') {
+        inputHtml = `<input type="text" class="modal-input" value="${defaultValue}" id="modal-input-field">`;
+      }
+
+      const isDanger = type === 'confirm' && message.includes('削除');
+      const okLabel = type === 'alert' ? '閉じる' : (isDanger ? '削除する' : 'OK');
+      const cancelHtml = type !== 'alert' ? `<button class="btn btn-cancel" id="modal-cancel">キャンセル</button>` : '';
+
+      overlay.innerHTML = `
+        <div class="modal-box">
+          <div class="modal-message">${message.replace(/\n/g, '<br>')}</div>
+          ${inputHtml}
+          <div class="modal-btns">
+            ${cancelHtml}
+            <button class="btn ${isDanger ? 'btn-danger' : 'btn-ok'}" id="modal-ok">${okLabel}</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+      if (type === 'prompt') document.getElementById('modal-input-field').focus();
+
+      const cleanup = (value) => {
+        overlay.remove();
+        resolve(value);
+      };
+
+      overlay.querySelector('#modal-ok').onclick = () => {
+        if (type === 'prompt') {
+          cleanup(document.getElementById('modal-input-field').value);
+        } else {
+          cleanup(true);
+        }
+      };
+
+      if (type !== 'alert') {
+        overlay.querySelector('#modal-cancel').onclick = () => cleanup(null);
+        overlay.onclick = (e) => { if (e.target === overlay) cleanup(null); };
+      }
+
+      // Enterキー対応
+      overlay.onkeydown = (e) => {
+        if (e.key === 'Enter') overlay.querySelector('#modal-ok').click();
+        if (e.key === 'Escape' && type !== 'alert') cleanup(null);
+      };
+    });
+  },
+  alert: function(msg) { return this.show('alert', msg); },
+  confirm: function(msg) { return this.show('confirm', msg); },
+  prompt: function(msg, def) { return this.show('prompt', msg, def); }
+};
+// グローバルに公開（firebase.jsからも使えるように）
+window.customDialog = customDialog;
+
 // 作品一覧にある全ての「読む」ボタンにカメラ移動演出を適用
 document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -441,12 +533,12 @@ document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
 // --- 投稿機能の実装 ---
 const publishBtn = document.getElementById('publish-btn');
 if (publishBtn) {
-  publishBtn.addEventListener('click', (e) => {
+  publishBtn.addEventListener('click', async (e) => {
     e.preventDefault();
 
     // Firebaseの準備ができているか確認（読み込み待ち対策）
     if (!window.db || !window.auth) {
-      alert('通信の準備中です。数秒待ってから再度お試しください。');
+      customDialog.alert('通信の準備中です。数秒待ってから再度お試しください。');
       return;
     }
 
@@ -456,7 +548,7 @@ if (publishBtn) {
     const contentInput = document.getElementById('editor-body');
 
     if (!contentInput.value.trim()) {
-      alert('本文を入力してください。');
+      customDialog.alert('本文を入力してください。');
       return;
     }
 
@@ -467,7 +559,7 @@ if (publishBtn) {
     if (editId === "null" || editId === "undefined") editId = null;
 
     if (!editId && (!window.auth || !window.auth.currentUser)) {
-      deleteKey = prompt("この投稿を後で編集・削除するための「編集コード」を設定してください（任意・英数字推奨）");
+      deleteKey = await customDialog.prompt("この投稿を後で編集・削除するための\n「編集コード」を設定してください\n（任意・英数字推奨）");
       // キャンセルされた場合は中断
       if (deleteKey === null) return;
     }
@@ -511,7 +603,7 @@ if (draftBtn) {
       content: contentInput ? contentInput.value : ''
     };
     localStorage.setItem('draft_story', JSON.stringify(draft));
-    alert('下書きを保存しました。');
+    customDialog.alert('下書きを保存しました。');
   });
 
   // 執筆画面であればページ読み込み時に下書きを復元
@@ -703,7 +795,7 @@ if (libraryGrid) {
       const user = window.auth.currentUser;
 
       if (!user) {
-        alert('いいねするにはログインが必要です');
+        customDialog.alert('いいねするにはログインが必要です');
         return;
       }
 
@@ -764,17 +856,15 @@ if (libraryGrid) {
         // 編集権限の確認
         if (!isOwner && !isAdmin) {
           if (story.uid === 'guest') {
-            const code = prompt("編集するために編集コードを入力してください");
+            const code = await customDialog.prompt("編集するために編集コードを入力してください");
             if (code === null) return;
-            if (story.deleteKey && code !== story.deleteKey) {
-              alert("コードが一致しません");
-              return;
-            } else if (!story.deleteKey) {
-              alert("この投稿は編集コードが設定されていないため、管理者のみ編集可能です。");
+            const requiredKey = story.deleteKey || "";
+            if (code !== requiredKey) {
+              customDialog.alert("コードが一致しません");
               return;
             }
           } else {
-            alert("編集権限がありません");
+            customDialog.alert("編集権限がありません");
             return;
           }
         }
@@ -790,7 +880,7 @@ if (libraryGrid) {
         }, 700);
       } catch (err) {
         console.error(err);
-        alert("読み込みに失敗しました");
+        customDialog.alert("読み込みに失敗しました");
       }
     }
 
@@ -811,29 +901,27 @@ if (libraryGrid) {
         // 削除権限の確認
         if (!isOwner && !isAdmin) {
           if (story.uid === 'guest') {
-            const code = prompt("編集コードを入力してください");
+            const code = await customDialog.prompt("編集コードを入力してください");
             if (code === null) return;
-            if (story.deleteKey && code !== story.deleteKey) {
-              alert("編集コードが一致しません");
-              return;
-            } else if (!story.deleteKey) {
-              alert("この投稿は編集コードが設定されていないため、管理者のみ削除可能です。");
+            const requiredKey = story.deleteKey || "";
+            if (code !== requiredKey) {
+              customDialog.alert("編集コードが一致しません");
               return;
             }
           } else {
-            alert("削除権限がありません");
+            customDialog.alert("削除権限がありません");
             return;
           }
         }
 
-        if (confirm('この物語をFirebaseから削除してもよろしいですか？')) {
+        if (await customDialog.confirm('この物語をsoundnovelから削除してもよろしいですか？')) {
           await window.deleteDoc(docRef);
           e.target.closest('.story-card').remove();
           if (window.playPageTurn) window.playPageTurn();
         }
       } catch (err) {
         console.error(err);
-        alert("削除に失敗しました");
+        customDialog.alert("削除に失敗しました");
       }
     }
   });
@@ -923,7 +1011,7 @@ document.querySelectorAll('.sound-card').forEach(card => {
   });
 });
 
-function insertSoundTag(type) {
+async function insertSoundTag(type) {
   const textarea = document.getElementById('editor-body');
   if (!textarea) {
     console.error("エディタが見つかりません。");
@@ -936,10 +1024,10 @@ function insertSoundTag(type) {
 
   let id;
   if (type === 'AUTO') {
-    id = prompt("音響IDを入力してください（一覧でコピーしたIDを貼り付けてください）");
+    id = await customDialog.prompt("音響IDを入力してください\n（一覧でコピーしたIDを貼り付け）");
   } else {
     const promptMsg = type === 'BG' ? "背景の色（例: black, #333）または設定したいクラス名を入力してください。" : `${type}のIDを入力してください`;
-    id = prompt(promptMsg, type === 'BG' ? 'black' : 'audio-');
+    id = await customDialog.prompt(promptMsg, type === 'BG' ? 'black' : 'audio-');
   }
   if (!id) return;
 
@@ -1007,7 +1095,7 @@ if (textBody) {
   const handleReaderLike = async (btn, storyId) => {
     const user = window.auth.currentUser;
     if (!user) {
-      alert('いいねするにはログインが必要です');
+      customDialog.alert('いいねするにはログインが必要です');
       return;
     }
     const docRef = window.doc(window.db, 'stories', storyId);
@@ -1234,28 +1322,27 @@ if (textBody) {
       if (currentLineIndex === lines.length) {
         const endMarker = document.getElementById('story-end-marker');
         if (endMarker) {
-          setTimeout(() => {
-            endMarker.classList.add('is-visible');
-            endMarker.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            
-            // 物語が終わったら「次へ」ボタンを隠す
-            const nextBtn = document.getElementById('mobile-next-btn');
-            if (nextBtn) {
-              nextBtn.style.opacity = '0';
-              setTimeout(() => nextBtn.remove(), 300);
-            }
+          endMarker.classList.add('is-visible');
+          endMarker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          
+          // 物語が終わったら「次へ」ボタンを隠す
+          const nextBtn = document.getElementById('mobile-next-btn');
+          if (nextBtn) {
+            nextBtn.style.opacity = '0';
+            setTimeout(() => nextBtn.remove(), 300);
+          }
 
-            // 「一覧に戻る」ボタンを表示（ENDと同じタイミング）
-            const footer = document.querySelector('.reader-footer');
-            if (footer) {
-              footer.style.setProperty('display', 'flex', 'important'); // PCでの親要素非表示を解除
-            }
-            const backToLibraryBtn = document.getElementById('back-to-library');
-            if (backToLibraryBtn) {
-              // スマホ用CSSの !important 指定を上書きして表示させる
-              backToLibraryBtn.style.setProperty('display', 'flex', 'important');
-            }
-          }, 1200); // 1.2秒待ってからENDと一緒に表示
+          // 「一覧に戻る」ボタンを表示
+          const footer = document.querySelector('.reader-footer');
+          if (footer) {
+            footer.style.setProperty('display', 'flex', 'important');
+            footer.style.setProperty('display', 'flex', 'important'); // PCでの親要素非表示を解除
+          }
+          const backToLibraryBtn = document.getElementById('back-to-library');
+          if (backToLibraryBtn) {
+            // スマホ用CSSの !important 指定を上書きして表示させる
+            backToLibraryBtn.style.setProperty('display', 'flex', 'important');
+          }
         }
       }
     }
@@ -1590,13 +1677,15 @@ if (loginBtn) {
         });
 
         dropdown.querySelector('#logout-action').addEventListener('click', () => {
-          if (confirm('ログアウトしますか？')) {
-            window.signOut(window.auth).then(() => {
-              // ログアウト後はトップへ戻る演出
-              saveBgmTime();
-              location.href = 'index.html';
-            });
-          }
+          window.customDialog.confirm('ログアウトしますか？').then(ok => {
+            if (ok) {
+              window.signOut(window.auth).then(() => {
+                // ログアウト後はトップへ戻る演出
+                saveBgmTime();
+                location.href = 'index.html';
+              });
+            }
+          });
         });
 
       } else {

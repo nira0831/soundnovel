@@ -114,6 +114,6 @@ window.addEventListener('publishStory', async (e) => {
 
   } catch (error) {
     console.error(error);
-    alert('投稿に失敗しました');
+    window.customDialog.alert('投稿に失敗しました');
   }
 });
