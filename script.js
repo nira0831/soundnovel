@@ -372,7 +372,15 @@ document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
 // --- 投稿機能の実装 ---
 const publishBtn = document.getElementById('publish-btn');
 if (publishBtn) {
-  publishBtn.addEventListener('click', () => {
+  publishBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+
+    // Firebaseの準備ができているか確認（読み込み待ち対策）
+    if (!window.db || !window.auth) {
+      alert('通信の準備中です。数秒待ってから再度お試しください。');
+      return;
+    }
+
     const titleInput = document.getElementById('editor-title');
     const authorInput = document.getElementById('editor-author');
     const prefaceInput = document.getElementById('editor-preface');
@@ -385,7 +393,10 @@ if (publishBtn) {
 
     // ゲスト投稿時の編集コード取得
     let deleteKey = null;
-    const editId = localStorage.getItem('edit_story_id');
+    let editId = localStorage.getItem('edit_story_id');
+    // 文字列の "null" や "undefined" が入っている場合を考慮
+    if (editId === "null" || editId === "undefined") editId = null;
+
     if (!editId && (!window.auth || !window.auth.currentUser)) {
       deleteKey = prompt("この投稿を後で編集・削除するための「編集コード」を設定してください（任意・英数字推奨）");
       // キャンセルされた場合は中断
@@ -1237,7 +1248,7 @@ if (loginBtn) {
   // firebase.js (type="module") によって window に Firebase 関連の関数がセットされるのを待つ
   const initAuth = () => {
     // window.auth や window.signInWithPopup が準備できるまで待機
-    if (!window.auth || !window.signInWithPopup || !window.onAuthStateChanged) {
+    if (!window.auth || !window.onAuthStateChanged) {
       setTimeout(initAuth, 50); // 50ms ごとに再チェック
       return;
     }
