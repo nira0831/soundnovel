@@ -1138,45 +1138,46 @@ if (textBody) {
       await new Promise(r => setTimeout(r, 100));
     }
 
+    // 本文を表示するための共通処理
+    const setupStory = (title, author, content, likedBy = []) => {
+      const titleEl = document.querySelector('.story-title');
+      const authorEl = document.querySelector('.story-author-name');
+      if (titleEl) titleEl.textContent = title;
+      if (authorEl) authorEl.textContent = author + ' 著';
+
+      textBody.innerHTML = ''; 
+      const allLines = content.split('\n').filter(l => l.trim());
+      allLines.forEach(lineText => {
+        const p = document.createElement('p');
+        p.textContent = lineText;
+        textBody.appendChild(p);
+      });
+
+      const endMarker = document.createElement('p');
+      endMarker.id = 'story-end-marker';
+      endMarker.className = 'end-marker';
+      endMarker.textContent = 'END';
+      textBody.appendChild(endMarker);
+
+      // 表示用の行リストを更新し、インデックスをリセット
+      lines = textBody.querySelectorAll('p');
+      currentLineIndex = 0;
+
+      // いいねボタンの更新（プレビュー時は空配列）
+      const storyId = localStorage.getItem('current_story_id');
+      if (storyId) updateReaderLikeIcons(storyId, likedBy);
+    };
+
     const storyId = localStorage.getItem('current_story_id');
     if (storyId) {
+      // --- Firestoreから読み込み（通常読書） ---
       try {
         const docSnap = await window.getDoc(window.doc(window.db, 'stories', storyId));
-        
         if (docSnap.exists()) {
           const story = docSnap.data();
-          // タイトルと著者を書き換え
-          const titleEl = document.querySelector('.story-title');
-          const authorEl = document.querySelector('.story-author-name');
-          if (titleEl) titleEl.textContent = story.title;
-          if (authorEl) authorEl.textContent = story.author + ' 著';
-
-          // 本文を入れ替え（マーカーを保持、または新規作成）
-          let endMarker = document.getElementById('story-end-marker');
-          if (!endMarker) {
-            endMarker = document.createElement('p');
-            endMarker.id = 'story-end-marker';
-            endMarker.className = 'end-marker';
-            endMarker.textContent = 'END';
-          }
-          textBody.innerHTML = ''; 
-          
-          const allLines = [];
-          allLines.push(...story.content.split('\n').filter(l => l.trim()));
-
-          allLines.forEach(lineText => {
-            const p = document.createElement('p');
-            p.textContent = lineText;
-            textBody.appendChild(p);
-          });
-          textBody.appendChild(endMarker);
-          
-          // 行のリストを再取得して初期化
-          lines = textBody.querySelectorAll('p');
-          currentLineIndex = 0; // 物語の読み込み完了時に表示位置をリセット
+          setupStory(story.title, story.author, story.content, story.likedBy || []);
 
           // --- いいねボタンの設置 ---
-          // PC用（フッター: 一覧に戻るボタンの横）
           const footer = document.querySelector('.reader-footer');
           if (footer) {
             if (!footer.querySelector(`.reader-like-btn[data-id="${storyId}"]`)) {
@@ -1204,17 +1205,20 @@ if (textBody) {
             headerNav.appendChild(container);
           }
 
-          // 初期表示の更新
-          updateReaderLikeIcons(storyId, story.likedBy || []);
-
           // ログイン状態が変わった時にもハートを更新するようにする
           window.onAuthStateChanged(window.auth, () => {
             updateReaderLikeIcons(storyId, story.likedBy || []);
           });
-
         }
       } catch (e) {
         console.error("物語の取得に失敗しました:", e);
+      }
+    } else {
+      // --- ローカルストレージから読み込み（プレビュー） ---
+      const savedDraft = localStorage.getItem('draft_story');
+      if (savedDraft) {
+        const draft = JSON.parse(savedDraft);
+        setupStory(draft.title || '（無題のプレビュー）', draft.author || '名無しさん', draft.content || '');
       }
     }
   })();
