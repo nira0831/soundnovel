@@ -38,6 +38,26 @@ const injectResponsiveStyles = () => {
     #login-dropdown .menu-item:hover { background: #333; }
     #login-dropdown .menu-item.danger { color: #ff6b6b; border-top: 1px solid #333; }
 
+    /* 読書画面用いいねボタン */
+    .reader-like-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 1.8rem;
+      color: #555;
+      transition: transform 0.2s, color 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 5px;
+    }
+    .reader-like-btn.liked { color: #ff4757; }
+    .reader-like-btn:hover { transform: scale(1.1); }
+    .header-like-container { display: none; }
+
+    /* PCでのフッター配置用 */
+    .reader-footer { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 40px; }
+
     /* いいねボタンのスタイル */
     .like-container {
       display: flex;
@@ -172,6 +192,7 @@ const injectResponsiveStyles = () => {
       .story-author-name { font-size: 1rem !important; margin-bottom: 15px !important; }
       .text-body p { font-size: 1.15rem !important; line-height: 1.9 !important; margin-bottom: 1.5rem !important; }
       .reader-footer { display: flex !important; flex-direction: column-reverse !important; gap: 15px !important; align-items: stretch !important; margin-top: 40px !important; padding-bottom: 120px !important; }
+      .header-like-container { display: flex !important; margin: 0 20px 10px auto !important; }
       #mobile-next-btn { display: block !important; position: fixed !important; bottom: 20px !important; left: 5% !important; width: 90% !important; margin: 0 !important; padding: 12px !important; font-size: 1rem !important; border-radius: 12px !important; box-shadow: 0 8px 30px rgba(0,0,0,0.6) !important; z-index: 1000 !important; background: #2980b9 !important; border: none !important; color: white !important; font-weight: bold !important; text-shadow: 0 2px 4px rgba(0,0,0,0.3) !important; }
       #back-to-library { text-align: center; padding: 12px !important; background: rgba(255,255,255,0.05); border-radius: 10px; display: none !important; } /* 初期非表示 */
       .volume-control { width: 160px !important; margin: 5px 0 15px auto !important; padding: 8px 12px !important; background: rgba(255, 255, 255, 0.1); border-radius: 20px; justify-content: space-between !important; }
@@ -953,6 +974,32 @@ document.addEventListener('DOMContentLoaded', () => {
 // 読書画面：一行ずつ表示する演出
 const textBody = document.querySelector('.text-body');
 if (textBody) {
+  // いいね処理の共通関数
+  const handleReaderLike = async (btn, storyId) => {
+    const user = window.auth.currentUser;
+    if (!user) {
+      alert('いいねするにはログインが必要です');
+      return;
+    }
+    const docRef = window.doc(window.db, 'stories', storyId);
+    const isLiked = btn.classList.contains('liked');
+    try {
+      if (isLiked) {
+        await window.updateDoc(docRef, { likedBy: window.arrayRemove(user.uid) });
+      } else {
+        await window.updateDoc(docRef, { likedBy: window.arrayUnion(user.uid) });
+      }
+      // ページ内の全てのリーダー用いいねボタンの状態を同期
+      document.querySelectorAll(`.reader-like-btn[data-id="${storyId}"]`).forEach(b => {
+        const liked = !isLiked;
+        b.classList.toggle('liked', liked);
+        b.textContent = liked ? '❤️' : '♡';
+      });
+    } catch (err) {
+      console.error("いいね更新失敗:", err);
+    }
+  };
+
   (async () => {
     // --- Firebaseから物語を読み込み ---
     const storyId = localStorage.getItem('current_story_id');
@@ -984,6 +1031,38 @@ if (textBody) {
           
           // 行のリストを再取得して初期化
           lines = textBody.querySelectorAll('p');
+
+          // --- いいねボタンの設置 ---
+          const user = window.auth.currentUser;
+          const likedBy = story.likedBy || [];
+          const isLiked = user && likedBy.includes(user.uid);
+
+          // PC用（フッター: 一覧に戻るボタンの横）
+          const footer = document.querySelector('.reader-footer');
+          if (footer) {
+            const footerLikeBtn = document.createElement('button');
+            footerLikeBtn.className = 'reader-like-btn';
+            footerLikeBtn.dataset.id = storyId;
+            footerLikeBtn.innerHTML = isLiked ? '❤️' : '♡';
+            if (isLiked) footerLikeBtn.classList.add('liked');
+            footerLikeBtn.onclick = () => handleReaderLike(footerLikeBtn, storyId);
+            footer.appendChild(footerLikeBtn);
+          }
+
+          // スマホ用（ヘッダー: ログインボタンの下）
+          const headerNav = document.querySelector('header nav');
+          if (headerNav) {
+            const container = document.createElement('div');
+            container.className = 'header-like-container';
+            const headerLikeBtn = document.createElement('button');
+            headerLikeBtn.className = 'reader-like-btn';
+            headerLikeBtn.dataset.id = storyId;
+            headerLikeBtn.innerHTML = isLiked ? '❤️' : '♡';
+            if (isLiked) headerLikeBtn.classList.add('liked');
+            headerLikeBtn.onclick = () => handleReaderLike(headerLikeBtn, storyId);
+            container.appendChild(headerLikeBtn);
+            headerNav.appendChild(container);
+          }
         }
       } catch (e) {
         console.error("物語の取得に失敗しました:", e);
@@ -1123,7 +1202,7 @@ if (textBody) {
             // 「一覧に戻る」ボタンを表示（ENDと同じタイミング）
             const footer = document.querySelector('.reader-footer');
             if (footer) {
-              footer.style.display = 'block'; // PCでの親要素非表示を解除
+              footer.style.setProperty('display', 'flex', 'important'); // PCでの親要素非表示を解除
             }
             const backToLibraryBtn = document.getElementById('back-to-library');
             if (backToLibraryBtn) {
