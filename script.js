@@ -988,7 +988,8 @@ if (volumeSlider) {
 
 // エディタ画面：サウンドカードのクリックで音声を再生
 document.querySelectorAll('.sound-card').forEach(card => {
-  card.addEventListener('click', () => {
+  card.addEventListener('click', (e) => {
+    e.stopPropagation(); // 他のクリックイベント（ホームBGM開始など）を抑制
     let audioId = card.dataset.audio;
     if (!audioId) return;
 
@@ -1421,20 +1422,33 @@ function updateSoundIndicator() {
   bar.style.left = '0'; // バーを本文の枠の左端に配置
   bar.style.right = 'auto'; // 以前の右側指定を無効化
 
+  // スタイルを textarea と完全に一致させる（ズレ防止）
+  const computedStyle = window.getComputedStyle(textarea);
+  display.style.font = computedStyle.font;
+  display.style.lineHeight = computedStyle.lineHeight;
+  display.style.padding = computedStyle.padding;
+  display.style.borderWidth = computedStyle.borderWidth;
+  display.style.boxSizing = computedStyle.boxSizing;
+  display.style.width = textarea.clientWidth + 'px';
+  display.style.height = textarea.clientHeight + 'px';
+
   // 表示用ミラーレイヤーの更新
   const text = textarea.value;
   const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const tagRegexGlobal = /\[(BGM|SE|BG):(.+?)\]/g;
   
-  // タグを「透明化」し、その上にアイコンを浮かべることで文字幅のズレを防ぐ
-  display.innerHTML = escapedText.replace(tagRegexGlobal, (match, type) => {
+  // ミラーレイヤーのHTML更新（アイコン表示）
+  const htmlContent = escapedText.replace(tagRegexGlobal, (match, type) => {
     const icon = type === 'BGM' ? '📻' : (type === 'SE' ? '🔊' : '🖼️');
     return `<span style="position:relative; display:inline-block; color:transparent; user-select:none; background:rgba(0,0,0,0.05); border-radius:3px;">${match}<span style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; pointer-events:auto; visibility:visible;" title="${match}">${icon}</span></span>`;
   });
+  
+  if (display.innerHTML !== htmlContent) {
+    display.innerHTML = htmlContent;
+  }
 
-  // スクロール位置を同期
-  display.scrollTop = textarea.scrollTop;
-  display.scrollLeft = textarea.scrollLeft;
+  // スクロール同期を実行
+  syncEditorScroll();
 
   // コンテナがなければ作成
   let container = bar.querySelector('.sound-marker-container');
@@ -1446,9 +1460,6 @@ function updateSoundIndicator() {
 
   const lines = text.split('\n');
 
-  // スタイル設定を動的に取得（フォントやパディングの変更によるズレを防止）
-  const computedStyle = window.getComputedStyle(textarea);
-  
   // 明示的な指定がない場合のフォールバックを1.5（HTML側の指定に合わせる）に修正
   const fontSize = parseFloat(computedStyle.fontSize);
   const lineHeight = parseFloat(computedStyle.lineHeight) || (fontSize * 1.5);
@@ -1456,8 +1467,6 @@ function updateSoundIndicator() {
   const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
 
   container.innerHTML = '';
-  // スクロール位置を同期
-  container.style.transform = `translateY(${-textarea.scrollTop}px)`;
 
   lines.forEach((line, index) => {
     const bgmMatch = line.match(/\[BGM:(.+?)\]/);
@@ -1501,6 +1510,24 @@ function updateSoundIndicator() {
 
   // 履歴の表示も更新
   updateSoundHistory();
+}
+
+/**
+ * エディタとミラーレイヤー、インジケーターバーのスクロール位置を軽量に同期する
+ */
+function syncEditorScroll() {
+  const textarea = document.getElementById('editor-body');
+  const display = document.getElementById('editor-display');
+  const bar = document.getElementById('sound-indicator-bar');
+  if (!textarea || !display || !bar) return;
+
+  display.scrollTop = textarea.scrollTop;
+  display.scrollLeft = textarea.scrollLeft;
+
+  const container = bar.querySelector('.sound-marker-container');
+  if (container) {
+    container.style.transform = `translateY(${-textarea.scrollTop}px)`;
+  }
 }
 
 /**
@@ -1594,8 +1621,20 @@ function updateSoundHistory() {
 // エディタが存在する場合の初期化と入力監視
 const editorTextArea = document.getElementById('editor-body');
 if (editorTextArea) {
+  // 小説執筆に不要なブラウザの自動校正・スペルチェックを無効化
+  const editorInputs = ['editor-body', 'editor-title', 'editor-author', 'editor-preface'];
+  editorInputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.spellcheck = false;
+      el.setAttribute('autocorrect', 'off');
+      el.setAttribute('autocapitalize', 'off');
+      el.autocomplete = 'off';
+    }
+  });
+
   editorTextArea.addEventListener('input', updateSoundIndicator);
-  editorTextArea.addEventListener('scroll', updateSoundIndicator);
+  editorTextArea.addEventListener('scroll', syncEditorScroll);
   window.addEventListener('resize', updateSoundIndicator);
   updateSoundIndicator();
 }
