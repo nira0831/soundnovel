@@ -1087,9 +1087,23 @@ if (editorTextArea) {
 const loginBtn = document.getElementById('login-btn');
 if (loginBtn) {
   loginBtn.addEventListener('click', () => {
+    const errorMsgEl = document.getElementById('auth-error-message');
+    if (errorMsgEl) errorMsgEl.textContent = ''; // 前回のエラーをクリア
+
     if (!window.auth.currentUser) {
       window.signInWithPopup(window.auth, window.provider)
-        .catch(e => console.error("ログインエラー:", e));
+        .catch(e => {
+          console.error("ログインエラー:", e);
+          if (errorMsgEl) {
+            if (e.code === 'auth/unauthorized-domain') {
+              errorMsgEl.textContent = "このドメイン（URL）はFirebaseで許可されていません。Firebaseコンソールの『承認済みドメイン』に現在のURL（localhostなど）を追加してください。";
+            } else if (e.code === 'auth/operation-not-allowed') {
+              errorMsgEl.textContent = "Googleログインが有効になっていません。Firebaseコンソールの『Sign-in method』でGoogleを有効にしてください。";
+            } else {
+              errorMsgEl.textContent = `エラー: ${e.code}`;
+            }
+          }
+        });
     } else {
       if (confirm('ログアウトしますか？')) {
         window.signOut(window.auth);
