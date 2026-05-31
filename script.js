@@ -549,6 +549,11 @@ if (libraryGrid) {
 
       const querySnapshot = await window.getDocs(q);
       
+      if (querySnapshot.empty && !isMyStories) {
+        libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">まだ公開された作品がありません。</p>';
+        return;
+      }
+      
       if (querySnapshot.empty && isMyStories) {
         libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">まだ投稿した作品がありません。</p>';
         return;
@@ -596,6 +601,7 @@ if (libraryGrid) {
       });
     } catch (e) {
       console.error("作品の取得に失敗しました:", e);
+      libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #ff6b6b;">作品の取得に失敗しました。ブラウザのコンソール（F12キー）を確認して、Firebaseのインデックス作成が必要な場合は表示されたURLをクリックしてください。</p>';
     }
   };
 

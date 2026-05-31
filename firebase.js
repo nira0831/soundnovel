@@ -67,10 +67,15 @@ window.addEventListener('publishStory', async (e) => {
     if (id) {
       // 既存作品の更新
       const docRef = doc(db, 'stories', id);
-      await updateDoc(docRef, {
+      const updateData = {
         ...storyData,
         updatedAt: serverTimestamp()
-      });
+      };
+      if (user) {
+        updateData.uid = user.uid;
+        updateData.isGuest = false;
+      }
+      await updateDoc(docRef, updateData);
       console.log("更新成功", id);
       localStorage.removeItem('edit_story_id');
     } else {
