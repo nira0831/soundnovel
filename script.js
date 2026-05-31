@@ -68,6 +68,18 @@ const injectResponsiveStyles = () => {
     .modal-btns .btn-cancel { background: #444; color: #ccc; }
     .modal-btns .btn-danger { background: #c0392b; color: white; }
 
+    /* 方法2: 疑似要素で下に“見えない終端”を作る（スクロール上限の拡張） */
+    /* コンテナに対して余白を作ることで、本文が短くても末尾を上に持ち上げられます */
+    .editor-body-container::after {
+      content: "";
+      display: block;
+      height: 1600px; /* 見えない終端の高さ */
+      pointer-events: none;
+    }
+    #editor-body, #editor-display {
+      padding-bottom: 300px !important; /* 疑似要素と同期して内部スクロールを確保 */
+    }
+
     /* 読書画面用いいねボタン */
     .reader-like-btn {
       background: none;
@@ -311,7 +323,7 @@ const hideAudioHint = () => {
 };
 
 // BGMの再生
-const startHomeBgm = () => {
+const startHomeBgm = (e) => {
   const homeAudio = document.getElementById('audio-home');
   if (!homeAudio) {
     hideAudioHint(); // If no audio element, no hint needed
@@ -362,7 +374,7 @@ const startHomeBgm = () => {
 // ページ読み込み時に自動再生を試みる
 window.addEventListener('DOMContentLoaded', () => {
   createAudioHint(); // Create the hint element once on DOMContentLoaded
-  startHomeBgm();
+  startHomeBgm(); // DOMContentLoadedではイベントオブジェクトがないため引数なしで呼び出す
 });
 
 // 最初のページロード時に、ユーザー操作を待ってBGM再生を試みる
@@ -999,11 +1011,12 @@ document.querySelectorAll('.sound-card').forEach(card => {
     if (!targetAudio) return;
     
     const currentAudioId = isHome ? 'audio-home' : audioId;
+    const isEditor = !!document.querySelector('.editor-container');
 
     // IDをクリップボードにコピー
     navigator.clipboard.writeText(currentAudioId).then(() => {
         const originalText = card.innerHTML;
-        card.innerHTML = `<span style="font-size: 0.8rem; color: #27ae60;">IDコピー & 再生中</span>`;
+        card.innerHTML = `<span style="font-size: 0.8rem; color: #27ae60;">IDコピー完了${!isEditor ? ' & 再生中' : ''}</span>`;
         card.style.borderColor = '#3498db';
         setTimeout(() => {
             card.innerHTML = originalText;
@@ -1011,17 +1024,19 @@ document.querySelectorAll('.sound-card').forEach(card => {
         }, 1500);
     });
 
-    // 現在再生中のすべての音声を停止して切り替える
-    document.querySelectorAll('audio').forEach(audio => {
-      if (audio !== targetAudio) {
-        audio.pause();
-        audio.currentTime = 0;
-      }
-    });
+    // 執筆画面以外（BGM・SE一覧など）では、実際に音を鳴らして確認できるようにする
+    if (!isEditor) {
+      document.querySelectorAll('audio').forEach(audio => {
+        if (audio !== targetAudio) {
+          audio.pause();
+          audio.currentTime = 0;
+        }
+      });
 
-    const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
-    targetAudio.volume = savedVolume;
-    targetAudio.play().catch(e => console.log("Audio play failed:", e));
+      const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
+      targetAudio.volume = savedVolume;
+      targetAudio.play().catch(e => console.log("Audio play failed:", e));
+    }
   });
 });
 
@@ -1139,14 +1154,15 @@ if (textBody) {
     }
 
     // 本文を表示するための共通処理
-    const setupStory = (title, author, content, likedBy = []) => {
+    const setupStory = (title, author, content, likedBy = [], id = null) => {
       const titleEl = document.querySelector('.story-title');
       const authorEl = document.querySelector('.story-author-name');
       if (titleEl) titleEl.textContent = title;
       if (authorEl) authorEl.textContent = author + ' 著';
 
       textBody.innerHTML = ''; 
-      const allLines = content.split('\n').filter(l => l.trim());
+      // 空行を除去しつつ、各行をpタグとして生成
+      const allLines = content.split('\n').map(l => l.trim()).filter(l => l !== "");
       allLines.forEach(lineText => {
         const p = document.createElement('p');
         p.textContent = lineText;
@@ -1163,9 +1179,63 @@ if (textBody) {
       lines = textBody.querySelectorAll('p');
       currentLineIndex = 0;
 
-      // いいねボタンの更新（プレビュー時は空配列）
-      const storyId = localStorage.getItem('current_story_id');
-      if (storyId) updateReaderLikeIcons(storyId, likedBy);
+      // --- UIの統一設定 ---
+      const backBtn = document.getElementById('back-to-library');
+      
+      if (!id) {
+        // 【プレビューモード】
+        if (backBtn) {
+          backBtn.textContent = 'エディタに戻る';
+          backBtn.onclick = (e) => {
+            e.preventDefault();
+            const container = document.querySelector('.container');
+            if (container) container.classList.add('camera-down-leave');
+            playPageTurn();
+            saveBgmTime();
+            setTimeout(() => { location.href = 'write.html'; }, 700);
+          };
+        }
+        // プレビュー時はいいねボタン関連を非表示
+        document.querySelectorAll('.header-like-container').forEach(el => el.style.display = 'none');
+      } else {
+        // 【本番読書モード】
+        if (backBtn) {
+          backBtn.textContent = '一覧に戻る';
+          // 通常の「一覧に戻る」ロジック（novels.htmlへ）は script.js 後方のイベントリスナーが担当
+        }
+
+        // いいねボタンの設置（フッター）
+        const footer = document.querySelector('.reader-footer');
+        if (footer && !footer.querySelector(`.reader-like-btn[data-id="${id}"]`)) {
+          const footerLikeBtn = document.createElement('button');
+          footerLikeBtn.className = 'reader-like-btn';
+          footerLikeBtn.dataset.id = id;
+          footerLikeBtn.onclick = () => handleReaderLike(footerLikeBtn, id);
+          footer.appendChild(footerLikeBtn);
+        }
+
+        // いいねボタンの設置（ヘッダー/スマホ用）
+        const loginBtn = document.getElementById('login-btn');
+        const headerNav = document.querySelector('header nav') || (loginBtn ? loginBtn.parentElement : null);
+        if (headerNav && !headerNav.querySelector('.header-like-container')) {
+          const container = document.createElement('div');
+          container.className = 'header-like-container';
+          const headerLikeBtn = document.createElement('button');
+          headerLikeBtn.className = 'reader-like-btn';
+          headerLikeBtn.dataset.id = id;
+          headerLikeBtn.onclick = () => handleReaderLike(headerLikeBtn, id);
+          container.appendChild(headerLikeBtn);
+          headerNav.appendChild(container);
+        }
+
+        // アイコンの状態更新
+        updateReaderLikeIcons(id, likedBy);
+
+        // ログイン状態の変化を監視して再描画
+        window.onAuthStateChanged(window.auth, () => {
+          updateReaderLikeIcons(id, likedBy);
+        });
+      }
     };
 
     const storyId = localStorage.getItem('current_story_id');
@@ -1175,50 +1245,16 @@ if (textBody) {
         const docSnap = await window.getDoc(window.doc(window.db, 'stories', storyId));
         if (docSnap.exists()) {
           const story = docSnap.data();
-          setupStory(story.title, story.author, story.content, story.likedBy || []);
-
-          // --- いいねボタンの設置 ---
-          const footer = document.querySelector('.reader-footer');
-          if (footer) {
-            if (!footer.querySelector(`.reader-like-btn[data-id="${storyId}"]`)) {
-              const footerLikeBtn = document.createElement('button');
-              footerLikeBtn.className = 'reader-like-btn';
-              footerLikeBtn.dataset.id = storyId;
-              footerLikeBtn.onclick = () => handleReaderLike(footerLikeBtn, storyId);
-              footer.appendChild(footerLikeBtn);
-            }
-          }
-
-          // スマホ用（ヘッダー: ログインボタンの下）
-          // header navが見つからない場合に備えて、login-btnの親要素を探す
-          const loginBtn = document.getElementById('login-btn');
-          const headerNav = document.querySelector('header nav') || (loginBtn ? loginBtn.parentElement : null);
-          
-          if (headerNav && !headerNav.querySelector('.header-like-container')) {
-            const container = document.createElement('div');
-            container.className = 'header-like-container';
-            const headerLikeBtn = document.createElement('button');
-            headerLikeBtn.className = 'reader-like-btn';
-            headerLikeBtn.dataset.id = storyId;
-            headerLikeBtn.onclick = () => handleReaderLike(headerLikeBtn, storyId);
-            container.appendChild(headerLikeBtn);
-            headerNav.appendChild(container);
-          }
-
-          // ログイン状態が変わった時にもハートを更新するようにする
-          window.onAuthStateChanged(window.auth, () => {
-            updateReaderLikeIcons(storyId, story.likedBy || []);
-          });
+          setupStory(story.title, story.author, story.content, story.likedBy || [], storyId);
         }
       } catch (e) {
         console.error("物語の取得に失敗しました:", e);
       }
     } else {
-      // --- ローカルストレージから読み込み（プレビュー） ---
       const savedDraft = localStorage.getItem('draft_story');
       if (savedDraft) {
         const draft = JSON.parse(savedDraft);
-        setupStory(draft.title || '（無題のプレビュー）', draft.author || '名無しさん', draft.content || '');
+        setupStory(draft.title || '（無題のプレビュー）', draft.author || '名無しさん', draft.content || [], [], null);
       }
     }
   })();
@@ -1271,8 +1307,12 @@ if (textBody) {
       // BGMまたはSEタグが含まれているかチェック
       const hasSoundTag = /\[(BGM|SE):.+?\]/.test(originalText);
 
-      // タグが含まれていない行では、再生中の音響（システム音以外）をすべてフェードアウト
-      if (!hasSoundTag) {
+      // タグを除去した本文のみのテキストを確認（空白や演出タグのみの行を判定）
+      const cleanText = originalText.replace(/\[(BGM|SE|BG):.+?\]/g, '').trim();
+
+      // 「音響タグがない」かつ「実際に本文（文字）がある」場合のみ、音をフェードアウトさせる
+      // これにより、空行や[BG:...]タグのみの行でBGMが止まるのを防ぎます
+      if (!hasSoundTag && cleanText !== "") {
         document.querySelectorAll('audio').forEach(a => {
           if (a.id !== 'audio-home' && a.id !== 'audio-mekuru') {
             if (!a.paused && a.volume > 0) fadeOut(a, 1000);
@@ -1400,6 +1440,9 @@ if (textBody) {
 
   // 画面クリックで次へ（ボタンやリンク以外）
   window.addEventListener('click', (e) => {
+    // 執筆画面（editor-containerがある場合）は、クリックで物語を進めない（音が勝手に変わるのを防ぐ）
+    if (document.querySelector('.editor-container')) return;
+
     // ボタン、リンク、音量スライダーの操作時はテキストを進めない
     if (e.target.closest('button') || e.target.closest('a') || e.target.closest('.volume-control')) return;
     showNextLine();
@@ -1408,6 +1451,9 @@ if (textBody) {
   // スペースキーで次へ
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Space') {
+      // 執筆画面では文章入力を優先し、物語を進めない（音が変わるのを防ぐ）
+      if (document.querySelector('.editor-container')) return;
+
       e.preventDefault(); // ブラウザのデフォルトのスクロールを防止
       showNextLine();
     }
@@ -1421,20 +1467,64 @@ function updateSoundIndicator() {
   const display = document.getElementById('editor-display');
   if (!textarea || !bar || !display) return;
 
-  // バー（縦棒）の長さをテキストエリアの枠の高さに合わせる
-  bar.style.height = textarea.offsetHeight + 'px';
-  bar.style.left = '0'; // バーを本文の枠の左端に配置
-  bar.style.right = 'auto'; // 以前の右側指定を無効化
-
   // スタイルを textarea と完全に一致させる（ズレ防止）
   const computedStyle = window.getComputedStyle(textarea);
-  display.style.font = computedStyle.font;
-  display.style.lineHeight = computedStyle.lineHeight;
-  display.style.padding = computedStyle.padding;
-  display.style.borderWidth = computedStyle.borderWidth;
+
+  // 行間の計算ずれ（蓄積疲労）を防ぐため、ピクセル値を精密に取得して再適用する
+  const fontSize = parseFloat(computedStyle.fontSize);
+  const lineHeightValue = parseFloat(computedStyle.lineHeight);
+  // normal等の場合は1.6倍程度を基準にし、必ずpx単位で固定する
+  const lineHeight = isNaN(lineHeightValue) ? Math.round(fontSize * 1.6) : lineHeightValue;
+
+  // 両方の要素の行高を同じピクセル値で上書き固定
+  textarea.style.lineHeight = lineHeight + 'px';
+  display.style.lineHeight = lineHeight + 'px';
+
+  // テキストレンダリングの差異を埋める
+  const syncStyles = [
+    'fontFamily', 'fontSize', 'fontWeight', 'fontStyle', 'letterSpacing', 
+    'wordSpacing', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+    'textAlign', 'textIndent', 'whiteSpace', 'wordBreak', 'wordWrap'
+  ];
+  syncStyles.forEach(prop => {
+    display.style[prop] = computedStyle[prop];
+  });
+  
+  // 本文入力欄（textarea）の文字を確実に黒く表示する
+  textarea.style.color = '#000000';
+  textarea.style.webkitTextFillColor = '#000000';
+  // 本文入力欄（textarea）の背景色を白にする
+  textarea.style.backgroundColor = '#ffffff';
+
+  // ミラー側の文字自体は透明にする（textareaの文字と重なって二重に見えるのを防ぐ）
+  display.style.color = 'transparent';
+  display.style.webkitTextFillColor = 'transparent';
+
+  display.style.fontVariantLigatures = 'none'; // 合字による幅の変化を防止
+  display.style.textRendering = 'auto';
+  display.style.border = 'none'; // ミラーレイヤーの枠線による幅の誤差を排除
   display.style.boxSizing = computedStyle.boxSizing;
+  display.style.overflow = 'hidden';
+  display.style.zIndex = '10'; // textarea（背景色あり）より手前にアイコンを表示
+  display.style.pointerEvents = 'none'; // 入力の邪魔をしない
+
+  // スクロールバーの有無による「文字の折り返し位置」のズレを完全に防ぐ
+  // clientWidth（内寸）を直接指定することで、スクロールバーの幅を考慮した一致を実現
+  const rect = textarea.getBoundingClientRect();
+  const borderLeft = parseFloat(computedStyle.borderLeftWidth) || 0;
+  const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
+  
   display.style.width = textarea.clientWidth + 'px';
   display.style.height = textarea.clientHeight + 'px';
+  display.style.left = borderLeft + 'px';
+  display.style.top = borderTop + 'px';
+
+  // マーカーバーの位置調整
+  bar.style.height = textarea.offsetHeight + 'px';
+  bar.style.left = '0';
+  bar.style.right = 'auto';
+  bar.style.zIndex = '20'; // テキストより前面に配置
+  bar.style.backgroundColor = 'rgba(150, 150, 150, 0.1)'; // バー自体を薄い灰色に
 
   // 表示用ミラーレイヤーの更新
   const text = textarea.value;
@@ -1444,7 +1534,7 @@ function updateSoundIndicator() {
   // ミラーレイヤーのHTML更新（アイコン表示）
   const htmlContent = escapedText.replace(tagRegexGlobal, (match, type) => {
     const icon = type === 'BGM' ? '📻' : (type === 'SE' ? '🔊' : '🖼️');
-    return `<span style="position:relative; display:inline-block; color:transparent; user-select:none; background:rgba(0,0,0,0.05); border-radius:3px;">${match}<span style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; pointer-events:auto; visibility:visible;" title="${match}">${icon}</span></span>`;
+    return `<span style="position:relative; display:inline-block; color:transparent; user-select:none; background:rgba(0,0,0,0.05); border-radius:3px;">${match}<span style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; pointer-events:none; visibility:visible;" title="${match}">${icon}</span></span>`;
   });
   
   if (display.innerHTML !== htmlContent) {
@@ -1464,11 +1554,7 @@ function updateSoundIndicator() {
 
   const lines = text.split('\n');
 
-  // 明示的な指定がない場合のフォールバックを1.5（HTML側の指定に合わせる）に修正
-  const fontSize = parseFloat(computedStyle.fontSize);
-  const lineHeight = parseFloat(computedStyle.lineHeight) || (fontSize * 1.5);
   const paddingTop = parseFloat(computedStyle.paddingTop);
-  const borderTop = parseFloat(computedStyle.borderTopWidth) || 0;
 
   container.innerHTML = '';
 
@@ -1484,7 +1570,7 @@ function updateSoundIndicator() {
       let tooltips = [];
       if (bgmMatch && seMatch) {
         // BGMとSEの両方がある場合は黒
-        marker.style.background = '#000';
+        marker.style.backgroundColor = '#000';
         tooltips.push(`BGM: ${bgmMatch[1]}`);
         tooltips.push(`SE: ${seMatch[1]}`);
       } else if (bgmMatch) {
@@ -1494,7 +1580,7 @@ function updateSoundIndicator() {
         marker.style.backgroundColor = '#2196f3'; // SEは青
         tooltips.push(`SE: ${seMatch[1]}`);
       } else if (bgMatch) {
-        // 背景変更のみの場合は従来の青緑色
+        // 背景変更のみの場合は青緑色
         marker.style.backgroundColor = '#008080';
         tooltips.push(`背景: ${bgMatch[1]}`);
       }
@@ -1597,26 +1683,9 @@ function updateSoundHistory() {
       // IDをコピー
       navigator.clipboard.writeText(item.id).then(() => {
         const originalHTML = card.innerHTML;
-        card.innerHTML = `<span style="color: #27ae60;">IDコピー & 再生中</span>`;
+        card.innerHTML = `<span style="color: #27ae60;">IDコピー完了</span>`;
         setTimeout(() => { card.innerHTML = originalHTML; }, 1500);
       });
-
-      // 音声を試聴（BGタグ以外）
-      if (item.type !== 'BG') {
-        const isHome = (item.id === '00-home' || item.id === 'audio-home');
-        const targetAudio = document.getElementById(isHome ? 'audio-home' : item.id);
-        if (targetAudio) {
-          document.querySelectorAll('audio').forEach(a => {
-            if (a !== targetAudio) {
-              a.pause();
-              a.currentTime = 0;
-            }
-          });
-          const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
-          targetAudio.volume = savedVolume;
-          targetAudio.play().catch(e => console.log("Playback failed:", e));
-        }
-      }
     };
     historyList.appendChild(card);
   });
@@ -1625,15 +1694,19 @@ function updateSoundHistory() {
 // エディタが存在する場合の初期化と入力監視
 const editorTextArea = document.getElementById('editor-body');
 if (editorTextArea) {
-  // 小説執筆に不要なブラウザの自動校正・スペルチェックを無効化
-  const editorInputs = ['editor-body', 'editor-title', 'editor-author', 'editor-preface'];
+  // 小説執筆に不要なブラウザの自動校正・スペルチェック・予測入力を徹底的に無効化
+  // editor-display（表示用レイヤー）も含めることで、拡張機能の干渉を防ぐ
+  const editorInputs = ['editor-body', 'editor-title', 'editor-author', 'editor-preface', 'editor-display'];
   editorInputs.forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.spellcheck = false;
+      el.setAttribute('spellcheck', 'false');
       el.setAttribute('autocorrect', 'off');
       el.setAttribute('autocapitalize', 'off');
-      el.autocomplete = 'off';
+      el.setAttribute('autocomplete', 'off');
+      // 外部拡張機能（GrammarlyやEdge Editor等）のポップアップを抑制
+      el.setAttribute('data-gramm', 'false');
+      el.setAttribute('data-ms-editor', 'false');
     }
   });
 
