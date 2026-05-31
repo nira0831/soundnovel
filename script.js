@@ -568,23 +568,32 @@ if (libraryGrid) {
     libraryGrid.innerHTML = ''; // リストをクリアして再描画
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const isMyStories = urlParams.get('filter') === 'mine';
+      const filter = urlParams.get('filter');
+      const isMyStories = filter === 'mine';
+      const isLikedStories = filter === 'liked';
       
       let q;
-      if (isMyStories) {
+      if (isMyStories || isLikedStories) {
         const titleEl = document.querySelector('.section-title');
-        if (titleEl) titleEl.textContent = '自分の作品一覧';
+        if (titleEl) titleEl.textContent = isMyStories ? '自分の作品一覧' : 'いいねした作品一覧';
 
         if (user) {
-          // 「自分の作品一覧」表示時：UIDで絞り込み
-          q = window.query(
-            window.collection(window.db, 'stories'), 
-            window.where('uid', '==', user.uid),
-            window.orderBy('createdAt', 'desc')
-          );
+          if (isMyStories) {
+            q = window.query(
+              window.collection(window.db, 'stories'), 
+              window.where('uid', '==', user.uid),
+              window.orderBy('createdAt', 'desc')
+            );
+          } else {
+            q = window.query(
+              window.collection(window.db, 'stories'), 
+              window.where('likedBy', 'array-contains', user.uid),
+              window.orderBy('createdAt', 'desc')
+            );
+          }
         } else {
           // ログインしていない場合
-          libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">自分の作品を表示するには、Googleでログインしてください。</p>';
+          libraryGrid.innerHTML = `<p style="text-align:center; padding: 40px; color: #bbb;">${isMyStories ? '自分の作品' : 'いいねした作品'}を表示するには、Googleでログインしてください。</p>`;
           return;
         }
       } else {
@@ -592,14 +601,10 @@ if (libraryGrid) {
       }
 
       const querySnapshot = await window.getDocs(q);
-      
-      if (querySnapshot.empty && !isMyStories) {
-        libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">まだ公開された作品がありません。</p>';
-        return;
-      }
-      
-      if (querySnapshot.empty && isMyStories) {
-        libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">まだ投稿した作品がありません。</p>';
+
+      if (querySnapshot.empty) {
+        let msg = isMyStories ? 'まだ投稿した作品がありません。' : (isLikedStories ? 'まだ「いいね」した作品がありません。' : 'まだ公開された作品がありません。');
+        libraryGrid.innerHTML = `<p style="text-align:center; padding: 40px; color: #bbb;">${msg}</p>`;
         return;
       }
       
@@ -1536,6 +1541,7 @@ if (loginBtn) {
         dropdown.className = 'menu-dropdown';
         dropdown.innerHTML = `
           <div class="menu-item" id="go-my-stories">自分の作品一覧</div>
+          <div class="menu-item" id="go-liked-stories">いいねした作品一覧</div>
           <div class="menu-item danger" id="logout-action">ログアウト</div>
         `;
         loginBtn.parentElement.appendChild(dropdown);
@@ -1549,6 +1555,18 @@ if (loginBtn) {
           
           setTimeout(() => {
             location.href = 'novels.html?filter=mine';
+          }, 700);
+        });
+
+        dropdown.querySelector('#go-liked-stories').addEventListener('click', () => {
+          const container = document.querySelector('.container');
+          if (container) container.classList.add('camera-down-leave');
+          
+          if (window.playPageTurn) window.playPageTurn();
+          if (window.saveBgmTime) window.saveBgmTime();
+          
+          setTimeout(() => {
+            location.href = 'novels.html?filter=liked';
           }, 700);
         });
 
