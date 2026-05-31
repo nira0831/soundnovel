@@ -23,6 +23,33 @@ const injectResponsiveStyles = () => {
     }
     #audio-play-hint:hover { background: #3498db; transform: scale(1.05); }
 
+    header nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+    #login-btn {
+      margin-right: 20px;
+      white-space: nowrap;
+      background: rgba(255, 255, 255, 0.05) !important; /* 控えめな半透明背景 */
+      border: 1px solid rgba(255, 255, 255, 0.3) !important; /* 繊細な枠線 */
+      color: #a5d6a7 !important; /* 文字を薄い緑に変更 */
+      padding: 6px 16px !important;
+      border-radius: 20px !important;
+      font-size: 0.85rem !important;
+      box-shadow: none !important;
+      transition: all 0.3s ease;
+      display: flex !important;
+      align-items: center !important;
+      gap: 8px !important;
+    }
+    #login-btn:hover {
+      background: rgba(255, 255, 255, 0.15) !important;
+      border-color: rgba(255, 255, 255, 0.5) !important;
+      color: #fff !important;
+    }
+
     @media screen and (max-width: 768px) {
       /* 全ページのロゴサイズを統一 */
       .logo, .logo a { 
@@ -34,6 +61,11 @@ const injectResponsiveStyles = () => {
         text-decoration: none !important;
       }
       
+      #login-btn {
+        margin: 10px 15px 10px auto !important;
+        padding: 5px 12px !important; /* モバイルでは少しコンパクトに */
+      }
+
       .container { width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important; min-height: 100vh !important; }
       header { padding: 0 !important; }
       .section-title { font-size: 1.4rem !important; margin: 5px 0 10px 0 !important; }
@@ -329,6 +361,12 @@ if (publishBtn) {
       return;
     }
 
+    // ログインチェック
+    if (!window.auth || !window.auth.currentUser) {
+      alert('投稿するにはGoogleログインが必要です。');
+      return;
+    }
+
     const newStory = {
       title: titleInput.value.trim() || '無題の物語',
       author: authorInput.value.trim() || '名無しさん',
@@ -393,14 +431,22 @@ if (draftBtn) {
 // --- 作品一覧の動的表示 ---
 const libraryGrid = document.querySelector('.library-section .story-grid');
 if (libraryGrid) {
-  const loadStories = async () => {
+  const loadStories = async (user) => {
+    libraryGrid.innerHTML = ''; // リストをクリアして再描画
     try {
       const q = window.query(window.collection(window.db, 'stories'), window.orderBy('createdAt', 'desc'));
       const querySnapshot = await window.getDocs(q);
       
+      const adminEmail = "soundnovelnira@gmail.com"; // あなたのGmailアドレスをここに設定
+
       querySnapshot.forEach((doc) => {
         const story = doc.data();
         const storyId = doc.id;
+
+        // 権限チェック: 投稿者本人か、管理者であれば削除ボタンを許可
+        const isOwner = user && story.uid === user.uid;
+        const isAdmin = user && user.email === adminEmail;
+
         const card = document.createElement('div');
         card.className = 'story-card';
         
@@ -408,13 +454,17 @@ if (libraryGrid) {
         let cleanDesc = descText.replace(/\[(BGM|SE|BG):.+?\]/g, '').replace(/\n/g, ' ');
         if (cleanDesc.length > 80) cleanDesc = cleanDesc.substring(0, 80) + '...';
 
+        const deleteBtnHtml = (isOwner || isAdmin)
+          ? `<button class="btn danger delete-story-btn" data-id="${storyId}">削除</button>`
+          : '';
+
         card.innerHTML = `
           <h3>${story.title}</h3>
           <p class="story-author">by ${story.author}</p>
           <p class="story-desc">${cleanDesc}</p>
           <div class="card-buttons" style="display: flex; gap: 10px;">
             <button class="btn primary user-story-btn" data-id="${storyId}">読む</button>
-            <button class="btn danger delete-story-btn" data-id="${storyId}">削除</button>
+            ${deleteBtnHtml}
           </div>
         `;
         libraryGrid.appendChild(card);
@@ -423,7 +473,13 @@ if (libraryGrid) {
       console.error("作品の取得に失敗しました:", e);
     }
   };
-  loadStories();
+
+  // ログイン状態の変化を監視し、変化があるたびに一覧を再読み込みする
+  if (window.onAuthStateChanged) {
+    window.onAuthStateChanged(window.auth, (user) => {
+      loadStories(user);
+    });
+  }
 
   // 動的に生成されたボタンへのクリックイベント（委譲）
   libraryGrid.addEventListener('click', (e) => {
@@ -1025,4 +1081,33 @@ if (editorTextArea) {
   window.addEventListener('resize', updateSoundIndicator);
   updateSoundIndicator();
 }
+
+// --- Googleログインボタンの処理 ---
+// HTML側に id="login-btn" のボタンがあることを想定しています
+const loginBtn = document.getElementById('login-btn');
+if (loginBtn) {
+  loginBtn.addEventListener('click', () => {
+    if (!window.auth.currentUser) {
+      window.signInWithPopup(window.auth, window.provider)
+        .catch(e => console.error("ログインエラー:", e));
+    } else {
+      if (confirm('ログアウトしますか？')) {
+        window.signOut(window.auth);
+      }
+    }
+  });
+
+  window.onAuthStateChanged(window.auth, (user) => {
+    if (user) {
+      // ログイン時はアイコンと名前を表示（アカウント情報エリアに見えるように）
+      const photo = user.photoURL ? `<img src="${user.photoURL}" style="width:20px; height:20px; border-radius:50%;">` : '';
+      loginBtn.innerHTML = `${photo}<span>${user.displayName || 'ログイン中'}</span>`;
+      loginBtn.title = "クリックしてログアウト";
+    } else {
+      loginBtn.innerHTML = '<span>Googleでログイン</span>';
+      loginBtn.title = "";
+    }
+  });
+}
+
 injectResponsiveStyles();
