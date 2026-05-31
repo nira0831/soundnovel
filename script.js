@@ -564,6 +564,9 @@ if (draftBtn) {
 // --- 作品一覧の動的表示 ---
 const libraryGrid = document.querySelector('.library-section .story-grid');
 if (libraryGrid) {
+  // 読み込み待ち中に静的なプレースホルダ（終電の後など）が表示されないよう即座にクリア
+  libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">読み込み中...</p>';
+
   const loadStories = async (user) => {
     libraryGrid.innerHTML = ''; // リストをクリアして再描画
     try {
