@@ -527,20 +527,32 @@ if (libraryGrid) {
       const isMyStories = urlParams.get('filter') === 'mine';
       
       let q;
-      if (isMyStories && user) {
-        // 「自分の作品一覧」表示時：UIDで絞り込み
-        q = window.query(
-          window.collection(window.db, 'stories'), 
-          window.where('uid', '==', user.uid),
-          window.orderBy('createdAt', 'desc')
-        );
+      if (isMyStories) {
         const titleEl = document.querySelector('.section-title');
         if (titleEl) titleEl.textContent = '自分の作品一覧';
+
+        if (user) {
+          // 「自分の作品一覧」表示時：UIDで絞り込み
+          q = window.query(
+            window.collection(window.db, 'stories'), 
+            window.where('uid', '==', user.uid),
+            window.orderBy('createdAt', 'desc')
+          );
+        } else {
+          // ログインしていない場合
+          libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">自分の作品を表示するには、Googleでログインしてください。</p>';
+          return;
+        }
       } else {
         q = window.query(window.collection(window.db, 'stories'), window.orderBy('createdAt', 'desc'));
       }
 
       const querySnapshot = await window.getDocs(q);
+      
+      if (querySnapshot.empty && isMyStories) {
+        libraryGrid.innerHTML = '<p style="text-align:center; padding: 40px; color: #bbb;">まだ投稿した作品がありません。</p>';
+        return;
+      }
       
       const adminEmail = "soundnovelnira@gmail.com"; // あなたのGmailアドレスをここに設定
 
@@ -588,11 +600,19 @@ if (libraryGrid) {
   };
 
   // ログイン状態の変化を監視し、変化があるたびに一覧を再読み込みする
-  if (window.onAuthStateChanged) {
+  const initLibraryAuth = () => {
+    // Firebaseの準備ができるまで待機
+    if (!window.auth || !window.onAuthStateChanged) {
+      setTimeout(initLibraryAuth, 50);
+      return;
+    }
+
     window.onAuthStateChanged(window.auth, (user) => {
       loadStories(user);
     });
-  }
+  };
+
+  initLibraryAuth();
 
   // 動的に生成されたボタンへのクリックイベント（委譲）
   libraryGrid.addEventListener('click', async (e) => {
