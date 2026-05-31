@@ -23,11 +23,27 @@ const injectResponsiveStyles = () => {
     }
     #audio-play-hint:hover { background: #3498db; transform: scale(1.05); }
 
+    /* ログインドロップダウン用スタイル */
+    #login-dropdown { 
+      display: none; position: absolute; right: 20px; top: 45px; 
+      background: #222; border: 1px solid #444; border-radius: 8px; 
+      box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 1100; min-width: 140px; 
+      overflow: hidden; 
+    }
+    #login-dropdown.show { display: block !important; }
+    #login-dropdown .menu-item { 
+      padding: 12px 16px; color: #eee; font-size: 0.85rem; 
+      cursor: pointer; text-align: left; transition: background 0.2s;
+    }
+    #login-dropdown .menu-item:hover { background: #333; }
+    #login-dropdown .menu-item.danger { color: #ff6b6b; border-top: 1px solid #333; }
+
     header nav {
       display: flex;
       align-items: center;
       justify-content: space-between;
       width: 100%;
+      position: relative; /* メニューの基準点 */
     }
     #login-btn {
       margin-right: 20px;
@@ -93,6 +109,8 @@ const injectResponsiveStyles = () => {
         margin: 0 15px 10px auto !important;
         padding: 5px 12px !important; /* モバイルでは少しコンパクトに */
       }
+      
+      #login-dropdown { right: 15px; top: 40px; }
 
       .container { width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important; min-height: 100vh !important; }
       header { padding: 0 !important; }
@@ -505,7 +523,23 @@ if (libraryGrid) {
   const loadStories = async (user) => {
     libraryGrid.innerHTML = ''; // リストをクリアして再描画
     try {
-      const q = window.query(window.collection(window.db, 'stories'), window.orderBy('createdAt', 'desc'));
+      const urlParams = new URLSearchParams(window.location.search);
+      const isMyStories = urlParams.get('filter') === 'mine';
+      
+      let q;
+      if (isMyStories && user) {
+        // 「自分の作品一覧」表示時：UIDで絞り込み
+        q = window.query(
+          window.collection(window.db, 'stories'), 
+          window.where('uid', '==', user.uid),
+          window.orderBy('createdAt', 'desc')
+        );
+        const titleEl = document.querySelector('.section-title');
+        if (titleEl) titleEl.textContent = '自分の作品一覧';
+      } else {
+        q = window.query(window.collection(window.db, 'stories'), window.orderBy('createdAt', 'desc'));
+      }
+
       const querySnapshot = await window.getDocs(q);
       
       const adminEmail = "soundnovelnira@gmail.com"; // あなたのGmailアドレスをここに設定
@@ -1261,7 +1295,8 @@ if (loginBtn) {
     }
 
     // ログイン・ログアウトのクリックイベント
-    loginBtn.addEventListener('click', () => {
+    loginBtn.addEventListener('click', (e) => {
+      e.stopPropagation(); // グローバルクリックで閉じないように
       const errorMsgEl = document.getElementById('auth-error-message');
       if (errorMsgEl) errorMsgEl.textContent = ''; // 前回のエラーをクリア
 
@@ -1281,18 +1316,43 @@ if (loginBtn) {
             }
           });
       } else {
-        if (confirm('ログアウトしますか？')) {
-          window.signOut(window.auth);
-        }
+        // ログイン済みの場合はドロップダウンメニューを表示
+        const dropdown = document.getElementById('login-dropdown');
+        if (dropdown) dropdown.classList.toggle('show');
       }
     });
 
     // ログイン状態の監視とUI更新
     window.onAuthStateChanged(window.auth, (user) => {
+      // 再描画のため既存のドロップダウンを削除
+      const existingDropdown = document.getElementById('login-dropdown');
+      if (existingDropdown) existingDropdown.remove();
+
       if (user) {
         const photo = user.photoURL ? `<img src="${user.photoURL}" style="width:20px; height:20px; border-radius:50%;">` : '';
         loginBtn.innerHTML = `${photo}<span>${user.displayName || 'ログイン中'}</span>`;
-        loginBtn.title = "クリックしてログアウト";
+        loginBtn.title = "メニューを表示";
+
+        // ログイン用ドロップダウンを作成して追加
+        const dropdown = document.createElement('div');
+        dropdown.id = 'login-dropdown';
+        dropdown.className = 'menu-dropdown';
+        dropdown.innerHTML = `
+          <div class="menu-item" id="go-my-stories">自分の作品一覧</div>
+          <div class="menu-item danger" id="logout-action">ログアウト</div>
+        `;
+        loginBtn.parentElement.appendChild(dropdown);
+
+        dropdown.querySelector('#go-my-stories').addEventListener('click', () => {
+          location.href = 'novels.html?filter=mine';
+        });
+
+        dropdown.querySelector('#logout-action').addEventListener('click', () => {
+          if (confirm('ログアウトしますか？')) {
+            window.signOut(window.auth);
+          }
+        });
+
       } else {
         loginBtn.innerHTML = '<span>Googleでログイン</span>';
         loginBtn.title = "";

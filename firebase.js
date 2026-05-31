@@ -11,7 +11,8 @@ import {
   updateDoc,
   orderBy,
   query,
-  serverTimestamp
+  serverTimestamp,
+  where
 } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 import {
   getAuth,
@@ -49,6 +50,7 @@ window.deleteDoc = deleteDoc;
 window.updateDoc = updateDoc;
 window.orderBy = orderBy;
 window.query = query;
+window.where = where;
 window.serverTimestamp = serverTimestamp;
 window.auth = auth;
 window.provider = provider;
