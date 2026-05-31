@@ -27,7 +27,7 @@ const injectResponsiveStyles = () => {
     #login-dropdown { 
       display: none; position: absolute; right: 20px; top: 45px; 
       background: #222; border: 1px solid #444; border-radius: 8px; 
-      box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 1100; min-width: 140px; 
+      box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 2000; min-width: 140px; 
       overflow: hidden; 
     }
     #login-dropdown.show { display: block !important; }
@@ -153,7 +153,7 @@ const injectResponsiveStyles = () => {
         padding: 5px 12px !important; /* モバイルでは少しコンパクトに */
       }
       
-      #login-dropdown { right: 15px; top: 40px; }
+      #login-dropdown { right: 15px; top: 52px; }
 
       .container { width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important; min-height: 100vh !important; }
       header { padding: 0 !important; }
