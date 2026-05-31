@@ -2,6 +2,89 @@
 let audioHintElement = null;
 let audioPlayedSuccessfully = localStorage.getItem('audio_permitted') === 'true';
 
+// スマホ（768px以下）向けのUI調整用スタイルを動的に注入
+const injectResponsiveStyles = () => {
+  const style = document.createElement('style');
+  style.id = 'responsive-styles';
+  style.textContent = `
+    @media screen and (max-width: 768px) {
+      /* 全ページのロゴサイズを統一 */
+      .logo, .logo a { 
+        font-size: 24px !important; 
+        font-weight: bold !important; 
+        text-align: left !important; 
+        margin: 10px 0 10px 15px !important; 
+        display: block !important;
+        text-decoration: none !important;
+      }
+      
+      .container { width: 100% !important; padding: 0 !important; margin: 0 !important; box-sizing: border-box !important; min-height: 100vh !important; }
+      header { padding: 0 !important; }
+      .section-title { font-size: 1.4rem !important; margin: 5px 0 10px 0 !important; }
+      
+      /* 作品一覧：カード幅を370pxで中央寄せ */
+      .library-section { width: 100% !important; padding: 0 !important; }
+      .story-grid { 
+        display: flex !important; 
+        flex-direction: column !important; 
+        align-items: center !important; 
+        padding: 5px 0 !important; 
+        gap: 8px !important; 
+        width: 100% !important;
+      }
+      .story-card { 
+        width: 370px !important; 
+        max-width: 90% !important; 
+        margin: 0 auto !important; 
+        padding: 12px 20px !important; 
+        border-radius: 20px !important; 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5) !important; 
+        border: 1px solid rgba(255,255,255,0.1) !important; 
+        box-sizing: border-box !important;
+      }
+      .story-card h3 { font-size: 1.2rem !important; margin-bottom: 2px !important; }
+      .story-author { font-size: 0.85rem !important; margin-bottom: 4px !important; color: #bbb !important; }
+      .story-desc { font-size: 0.85rem !important; line-height: 1.3 !important; margin-bottom: 8px !important; }
+      .card-buttons { flex-direction: row !important; gap: 10px !important; display: flex !important; width: 100% !important; }
+      .card-buttons .btn { flex: 1 !important; width: auto !important; padding: 8px !important; font-size: 0.9rem !important; border-radius: 10px !important; }
+
+      /* 読書画面の調整 */
+      .reader-section { padding: 30px 15px !important; }
+      .reader-content { padding: 25px 20px !important; border-radius: 15px !important; min-height: 400px !important; }
+      .story-title { font-size: 1.8rem !important; margin-top: 10px !important; line-height: 1.3 !important; }
+      .story-author-name { font-size: 1rem !important; margin-bottom: 15px !important; }
+      .text-body p { font-size: 1.15rem !important; line-height: 1.9 !important; margin-bottom: 1.5rem !important; }
+      .reader-footer { display: flex !important; flex-direction: column-reverse !important; gap: 15px !important; align-items: stretch !important; margin-top: 40px !important; padding-bottom: 120px !important; }
+      #mobile-next-btn { display: block !important; position: fixed !important; bottom: 20px !important; left: 5% !important; width: 90% !important; margin: 0 !important; padding: 12px !important; font-size: 1rem !important; border-radius: 12px !important; box-shadow: 0 8px 30px rgba(0,0,0,0.6) !important; z-index: 1000 !important; background: #2980b9 !important; border: none !important; color: white !important; font-weight: bold !important; text-shadow: 0 2px 4px rgba(0,0,0,0.3) !important; }
+      #back-to-library { text-align: center; padding: 12px !important; background: rgba(255,255,255,0.05); border-radius: 10px; display: none !important; } /* 初期非表示 */
+      .volume-control { width: 160px !important; margin: 5px 0 15px auto !important; padding: 8px 12px !important; background: rgba(255, 255, 255, 0.1); border-radius: 20px; justify-content: space-between !important; }
+      #audio-play-hint { position: fixed !important; bottom: 100px; right: 20px; top: auto !important; left: auto !important; background: rgba(0,0,0,0.85) !important; padding: 10px 15px !important; border-radius: 8px !important; z-index: 1000; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+      .sound-marker { width: 40px !important; }
+      .sound-card { padding: 15px !important; font-size: 1rem !important; margin-bottom: 10px !important; }
+
+      /* 執筆画面（write.html）の調整 */
+      .editor-container { flex-direction: column !important; gap: 20px !important; padding: 0 10px !important; }
+      .editor-main { order: 1 !important; width: 100% !important; }
+      .editor-sidebar { order: 2 !important; width: 100% !important; position: static !important; gap: 30px !important; padding-bottom: 60px !important; }
+      .input-row { flex-direction: column !important; gap: 0 !important; }
+      .editor-body-container { height: 350px !important; }
+      #sound-indicator-bar { height: 350px !important; }
+      .editor-main input, .editor-main textarea { font-size: 16px !important; padding: 12px 15px !important; border-radius: 20px !important; margin-bottom: 10px !important; }
+      #editor-display { font-size: 16px !important; padding: 12px 15px !important; }
+      .sidebar-group { gap: 10px !important; }
+      .sidebar-group h3 { font-size: 1.1rem !important; margin-bottom: 5px !important; }
+
+      /* 音響ライブラリ（BGM・SE.html）の調整 */
+      .field-theme h1 { font-size: 1.8rem !important; margin-top: 10px !important; margin-bottom: 5px !important; }
+      .sound-section { padding: 15px !important; margin-top: 20px !important; border-radius: 15px !important; }
+      .category-title { font-size: 1.1rem !important; margin-bottom: 10px !important; padding-left: 10px !important; }
+      .sound-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+      .sound-card { min-height: 70px !important; padding: 10px !important; font-size: 0.9rem !important; border-radius: 12px !important; }
+    }
+  `;
+  document.head.appendChild(style);
+};
+
 // Function to create and append the audio hint
 const createAudioHint = () => {
   if (audioHintElement) return; // Already created
@@ -11,6 +94,12 @@ const createAudioHint = () => {
   audioHintElement.textContent = 'クリックで音楽を再生'; // The desired text
   audioHintElement.style.display = 'none'; // Initially hidden
   document.body.appendChild(audioHintElement);
+
+  updateAudioHintPosition();
+};
+
+const updateAudioHintPosition = () => {
+  if (!audioHintElement || window.innerWidth <= 768) return;
 
   // Position the hint dynamically below the volume control
   const volumeControl = document.querySelector('.volume-control');
@@ -95,6 +184,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // これらのリスナーは、BGMが一度でも成功するまで残る
 window.addEventListener('click', startHomeBgm);
 window.addEventListener('keydown', startHomeBgm);
+window.addEventListener('resize', updateAudioHintPosition);
 
 // 遷移時に現在の再生時間を保存する関数
 const saveBgmTime = () => {
@@ -657,7 +747,18 @@ if (textBody) {
               nextBtn.style.opacity = '0';
               setTimeout(() => nextBtn.remove(), 300);
             }
-          }, 1200); // 1.2秒待ってからゆっくり表示
+
+            // 「一覧に戻る」ボタンを表示（ENDと同じタイミング）
+            const footer = document.querySelector('.reader-footer');
+            if (footer) {
+              footer.style.display = 'block'; // PCでの親要素非表示を解除
+            }
+            const backToLibraryBtn = document.getElementById('back-to-library');
+            if (backToLibraryBtn) {
+              // スマホ用CSSの !important 指定を上書きして表示させる
+              backToLibraryBtn.style.setProperty('display', 'flex', 'important');
+            }
+          }, 1200); // 1.2秒待ってからENDと一緒に表示
         }
       }
     }
@@ -671,7 +772,7 @@ if (textBody) {
     const nextBtn = document.createElement('button');
     nextBtn.id = 'mobile-next-btn';
     nextBtn.textContent = '次へ';
-    
+
     // スタイル設定：一覧に戻るボタンの右側、本文の右端に合わせる
     Object.assign(nextBtn.style, {
       padding: '12px 32px',
@@ -688,12 +789,6 @@ if (textBody) {
       userSelect: 'none',
       marginLeft: 'auto' // 右寄せにする
     });
-
-    // フッターのレイアウトを調整（flexで左右に配置）
-    footer.style.display = 'flex';
-    footer.style.justifyContent = 'space-between';
-    footer.style.alignItems = 'center';
-    footer.style.marginTop = '20px';
 
     nextBtn.addEventListener('click', (e) => {
       showNextLine();
@@ -910,3 +1005,4 @@ if (editorTextArea) {
   window.addEventListener('resize', updateSoundIndicator);
   updateSoundIndicator();
 }
+injectResponsiveStyles();

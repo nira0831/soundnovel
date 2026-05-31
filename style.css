@@ -1,3 +1,11 @@
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background-color: #ffffff; /* ホームの下端の色に合わせる */
+}
+
 body {
   margin: 0;
   font-family: "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", sans-serif;
@@ -5,22 +13,27 @@ body {
   line-height: 1.6;
   overflow-x: hidden;
   /* デフォルトの背景（index.html用） */
-  background: linear-gradient(180deg, #e0f7ff 0%, #ffffff 100%);
+  background: linear-gradient(180deg, #e0f7ff 0%, #ffffff 100%) no-repeat;
+  background-attachment: fixed;
+  min-height: 100vh;
 }
 
 /* 砂浜のテーマ (novels.html用) */
 .beach-theme { /* bodyに直接適用 */
+  background-color: #fdf6e3; /* 砂浜の下端の色に合わせる */
   background: 
     radial-gradient(circle at 15% 90%, rgba(255, 255, 255, 0.7) 0%, transparent 2%),
     radial-gradient(circle at 35% 85%, rgba(255, 250, 200, 0.6) 0%, transparent 2.5%),
     radial-gradient(circle at 65% 92%, rgba(255, 255, 255, 0.7) 0%, transparent 3%),
     radial-gradient(circle at 85% 80%, rgba(255, 255, 255, 0.5) 0%, transparent 2%),
-    linear-gradient(to top, #fdf6e3 0%, #fffdf5 35%, #ffffff 42%, #caf0f8 50%, #e0f7ff 100%);
+    linear-gradient(to top, #fdf6e3 0%, #fffdf5 35%, #ffffff 42%, #caf0f8 50%, #e0f7ff 100%) no-repeat;
+  background-attachment: fixed;
   color: #333;
 }
 
 /* 野原のテーマ (BGM・SE.html用) */
 .field-theme {
+  background-color: #c7f9cc; /* 下端の色に合わせる */
   background: 
     /* 草原のきらめき */
     radial-gradient(circle at 10% 85%, rgba(255, 255, 255, 0.6) 0%, transparent 1.5%),
@@ -28,7 +41,8 @@ body {
     radial-gradient(circle at 60% 88%, rgba(255, 255, 255, 0.6) 0%, transparent 1.5%),
     radial-gradient(circle at 85% 95%, rgba(255, 255, 255, 0.5) 0%, transparent 2%),
     /* 空、地平線、草原の境界 */
-    linear-gradient(to top, #c7f9cc 0%, #dcfce1 35%, #ffffff 42%, #caf0f8 50%, #e0f7ff 100%);
+    linear-gradient(to top, #c7f9cc 0%, #dcfce1 35%, #ffffff 42%, #caf0f8 50%, #e0f7ff 100%) no-repeat;
+  background-attachment: fixed;
   color: #333;
 }
 
@@ -42,6 +56,7 @@ body {
 
 .container {
   max-width: 1200px;
+  width: 100%;
   margin: 0 auto;
   padding: 0 20px;
   min-height: 100vh;
@@ -51,6 +66,12 @@ body {
   z-index: 1;
   transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.8s ease;
   background: transparent; /* bodyが背景を持つため、コンテナは透明に */
+}
+
+@media screen and (max-width: 768px) {
+  .container {
+    padding: 0 15px;
+  }
 }
 
 /* カメラが下がる（コンテンツが上に消える）演出 */
@@ -360,6 +381,7 @@ h1 {
 .reader-footer {
   text-align: center;
   margin-top: 40px;
+  display: none; /* 初期状態では非表示 */
 }
 
 .story-grid {

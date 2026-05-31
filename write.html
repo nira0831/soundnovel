@@ -2,6 +2,7 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>作品を作る - soundnovel</title>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -234,6 +235,10 @@
                     setTimeout(() => {
                         endMarker.classList.add('is-visible');
                         endMarker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        
+                        // 物語が終わったら「次へ」ボタンを隠す
+                        const nextBtn = document.getElementById('mobile-next-btn');
+                        if (nextBtn) nextBtn.style.setProperty('display', 'none', 'important');
                     }, 800);
                 }
             }
@@ -268,6 +273,13 @@
 
             document.querySelector('#preview-overlay .story-end').classList.remove('is-visible');
             document.getElementById('preview-overlay').style.display = 'block';
+            
+            // プレビュー開始時にフッター（戻るボタン）を表示し、「次へ」ボタンの状態をリセット
+            const footer = document.querySelector('#preview-overlay .reader-footer');
+            if (footer) footer.style.display = 'block';
+            const nextBtn = document.getElementById('mobile-next-btn');
+            if (nextBtn) nextBtn.style.setProperty('display', 'block', 'important');
+
             document.body.style.overflow = 'hidden';
         });
 
@@ -290,6 +302,12 @@
         });
 
         document.getElementById('preview-overlay').addEventListener('click', (e) => {
+            // 「次へ」ボタン自体がクリックされた場合は物語を進める
+            if (e.target.id === 'mobile-next-btn' || e.target.closest('#mobile-next-btn')) {
+                showNextPreviewLine();
+                return;
+            }
+            // それ以外のフッター（エディタに戻るボタンなど）のクリックは無視
             if (e.target.closest('.reader-footer')) return;
             showNextPreviewLine();
         });
@@ -301,7 +319,7 @@
             }
         });
     </script>
-    <script src="script.js"></script>
+    <script type="module" src="script.js"></script>
     <script type="module" src="firebase.js"></script>
 </body>
 </html>
