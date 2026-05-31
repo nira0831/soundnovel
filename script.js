@@ -85,6 +85,19 @@ const injectResponsiveStyles = () => {
     .reader-like-btn:hover { transform: scale(1.1); }
     .header-like-container { display: none; }
 
+    /* 本文の1行ずつの表示用スタイル */
+    .text-body p { 
+      opacity: 0; 
+      transform: translateY(15px); 
+      transition: opacity 0.8s ease, transform 0.8s ease;
+    }
+    .text-body p.is-visible { 
+      opacity: 1 !important; 
+      transform: translateY(0) !important; 
+    }
+    .end-marker { opacity: 0; text-align: center; padding: 40px 0; font-weight: bold; color: #888; transition: opacity 1s; }
+    .end-marker.is-visible { opacity: 1 !important; }
+
     /* PCでのフッター配置用 */
     .reader-footer { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 40px; }
 
@@ -1159,6 +1172,7 @@ if (textBody) {
           
           // 行のリストを再取得して初期化
           lines = textBody.querySelectorAll('p');
+          currentLineIndex = 0; // 物語の読み込み完了時に表示位置をリセット
 
           // --- いいねボタンの設置 ---
           // PC用（フッター: 一覧に戻るボタンの横）
@@ -1247,27 +1261,20 @@ if (textBody) {
       const currentVolume = volumeSlider ? volumeSlider.value : 0.4;
 
       const tagRegex = /\[(BGM|SE|BG):(.+?)\]/g;
-      // タグが含まれているかチェック
-      const hasSoundEffect = tagRegex.test(currentLine.textContent);
-      tagRegex.lastIndex = 0; // test後のインデックスをリセット
+      const originalText = currentLine.textContent;
 
-      // 現在の行に指定されていない音響（BGM/SE）をすべてフェードアウト
-      const currentLineTags = [];
-      let m;
-      const audioSearchRegex = /\[(BGM|SE):(.+?)\]/g;
-      while ((m = audioSearchRegex.exec(currentLine.textContent)) !== null) {
-        currentLineTags.push(m[2]);
+      // BGMまたはSEタグが含まれているかチェック
+      const hasSoundTag = /\[(BGM|SE):.+?\]/.test(originalText);
+
+      // タグが含まれていない行では、再生中の音響（システム音以外）をすべてフェードアウト
+      if (!hasSoundTag) {
+        document.querySelectorAll('audio').forEach(a => {
+          if (a.id !== 'audio-home' && a.id !== 'audio-mekuru') {
+            if (!a.paused && a.volume > 0) fadeOut(a, 1000);
+          }
+        });
       }
 
-      document.querySelectorAll('audio').forEach(a => {
-        if (a.id !== 'audio-home' && a.id !== 'audio-mekuru' && !currentLineTags.includes(a.id)) {
-          if (!a.paused && a.volume > 0) {
-            fadeOut(a, 1000);
-          }
-        }
-      });
-
-      const originalText = currentLine.textContent;
       let match;
       
       while ((match = tagRegex.exec(originalText)) !== null) {
@@ -1287,13 +1294,16 @@ if (textBody) {
         const audioEl = document.getElementById(audioId);
         if (audioEl) {
           if (type === 'BGM') {
-            document.querySelectorAll('audio[loop]').forEach(a => {
-              if (a.id !== audioId && a.id !== 'audio-home') {
-                if (a.volume > 0) fadeOut(a, 1000);
-                else { a.pause(); a.currentTime = 0; }
-              }
-            });
-            fadeIn(audioEl, currentVolume, 1000);
+            // 既に指定されたBGMが流れている場合は、再度のフェードイン（音量の初期化）を避ける
+            if (audioEl.paused || audioEl.volume < 0.1) {
+              // 他のBGMをフェードアウト
+              document.querySelectorAll('audio').forEach(a => {
+                if (a.id !== audioId && a.id !== 'audio-home' && a.id !== 'audio-mekuru') {
+                  if (!a.paused && a.volume > 0) fadeOut(a, 1000);
+                }
+              });
+              fadeIn(audioEl, currentVolume, 1000);
+            }
           } else {
             // SEタグ、またはBGMタグだがループ設定がない（効果音）場合
             audioEl.volume = currentVolume;
