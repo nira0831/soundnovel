@@ -178,7 +178,6 @@
                 const rawText = lineData.raw;
                 const p = lineData.el;
                 const currentVolume = document.getElementById('volume-slider').value;
-                const tagRegex = /\[(BGM|SE|BG):(.+?)\]/g;
 
                 // 音響演出の解析
                 const currentLineTags = [];
@@ -214,22 +213,9 @@
                 });
 
                 // 表示処理
-                p.textContent = rawText.replace(tagRegex, '').trim();
                 p.classList.add('is-visible');
                 p.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 currentPreviewIndex++;
-
-                // タグ消去後に空行になった場合は自動で次へ
-                if (p.textContent.trim() === "" && currentPreviewIndex < previewLines.length) {
-                    p.style.display = 'none';
-                    showNextPreviewLine();
-                    return;
-                }
-                // テキストがないがタグがある場合（演出のみの行）も次へ
-                if (p.textContent.trim() === "" && currentLineTags.length > 0 && currentPreviewIndex < previewLines.length) {
-                    setTimeout(showNextPreviewLine, 100);
-                    return;
-                }
             } else {
                 const endMarker = document.querySelector('#preview-overlay .story-end');
                 if (endMarker && !endMarker.classList.contains('is-visible')) {
@@ -259,12 +245,19 @@
             bodyContainer.innerHTML = '';
             previewLines = [];
             currentPreviewIndex = 0;
+            const tagRegex = /\[(BGM|SE|BG):(.+?)\]/g;
 
-            body.split('\n').forEach(lineText => {
-                const p = document.createElement('p');
-                bodyContainer.appendChild(p);
-                previewLines.push({ el: p, raw: lineText });
-            });
+            // 空行を除去し、事前にタグを抜いたテキストを設定しておく（高さ計算のズレを防止）
+            body.split('\n')
+                .map(line => line.trim())
+                .filter(line => line !== "")
+                .forEach(lineText => {
+                    const p = document.createElement('p');
+                    // タグを抜いた状態のテキストを先に入れておくことで、ブラウザが正しい高さを把握できる
+                    p.textContent = lineText.replace(tagRegex, '');
+                    bodyContainer.appendChild(p);
+                    previewLines.push({ el: p, raw: lineText });
+                });
 
             // 作成画面のBGMを止める
             const homeAudio = document.getElementById('audio-home');
