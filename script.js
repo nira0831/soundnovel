@@ -278,6 +278,50 @@ const injectResponsiveStyles = () => {
   document.head.appendChild(style);
 };
 
+// フェードアウト演出用の共通関数
+const fadeOut = (audio, duration = 2000) => {
+  if (!audio) return;
+  // 既にフェード中の場合は一旦クリア
+  if (audio.fadeTimer) clearInterval(audio.fadeTimer);
+
+  const startVolume = audio.volume;
+  if (startVolume <= 0) {
+    audio.pause();
+    return;
+  }
+  const step = startVolume / (duration / 50);
+  audio.fadeTimer = setInterval(() => {
+    if (audio.volume > step) {
+      audio.volume -= step;
+    } else {
+      audio.volume = 0;
+      audio.pause();
+      clearInterval(audio.fadeTimer);
+      audio.fadeTimer = null;
+    }
+  }, 50);
+};
+
+// フェードイン演出用の共通関数
+const fadeIn = (audio, targetVolume, duration = 2000) => {
+  if (!audio) return;
+  // 既にフェード中の場合は一旦クリア
+  if (audio.fadeTimer) clearInterval(audio.fadeTimer);
+
+  audio.volume = 0;
+  audio.play().catch(e => console.log("Audio play failed:", e));
+  const step = targetVolume / (duration / 50);
+  audio.fadeTimer = setInterval(() => {
+    if (audio.volume < targetVolume - step) {
+      audio.volume += step;
+    } else {
+      audio.volume = targetVolume;
+      clearInterval(audio.fadeTimer);
+      audio.fadeTimer = null;
+    }
+  }, 50);
+};
+
 // Function to create and append the audio hint
 const createAudioHint = () => {
   if (audioHintElement) return; // Already created
@@ -342,6 +386,7 @@ const startHomeBgm = (e) => {
 
     const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
     homeAudio.volume = savedVolume;
+    homeAudio.loop = true;
 
     // 前のページから引き継いだ再生時間をセット
     const savedTime = localStorage.getItem('bgm_time');
@@ -359,6 +404,10 @@ const startHomeBgm = (e) => {
 
     homeAudio.play()
         .then(() => {
+            // 初回の音声有効化クリックだった場合、イベントにフラグを立てて物語の進行を1回防ぐ
+            if (!audioPlayedSuccessfully && e) {
+                e.isFirstAudioClick = true;
+            }
             audioPlayedSuccessfully = true;
             localStorage.setItem('audio_permitted', 'true');
             hideAudioHint();
@@ -442,6 +491,8 @@ if (soundLibraryBtn) {
     const authorInput = document.getElementById('editor-author');
     const prefaceInput = document.getElementById('editor-preface');
     const contentInput = document.getElementById('editor-body');
+    // 移動前に自動で下書き保存を実行
+    saveDraftToLocalStorage();
 
     const draft = {
       title: titleInput ? titleInput.value : '',
@@ -538,6 +589,24 @@ const customDialog = {
 // グローバルに公開（firebase.jsからも使えるように）
 window.customDialog = customDialog;
 
+// --- 下書き保存の共通関数 ---
+const saveDraftToLocalStorage = () => {
+  const titleInput = document.getElementById('editor-title');
+  const authorInput = document.getElementById('editor-author');
+  const prefaceInput = document.getElementById('editor-preface');
+  const contentInput = document.getElementById('editor-body');
+
+  if (!contentInput) return; // エディタ画面でない場合はスキップ
+
+  const draft = {
+    title: titleInput ? titleInput.value : '',
+    author: authorInput ? authorInput.value : '',
+    preface: prefaceInput ? prefaceInput.value : '',
+    content: contentInput ? contentInput.value : ''
+  };
+  localStorage.setItem('draft_story', JSON.stringify(draft));
+};
+
 // 作品一覧にある全ての「読む」ボタンにカメラ移動演出を適用
 document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -563,6 +632,8 @@ if (previewBtn) {
     const authorInput = document.getElementById('editor-author');
     const prefaceInput = document.getElementById('editor-preface');
     const contentInput = document.getElementById('editor-body');
+
+    saveDraftToLocalStorage(); // プレビュー前に自動で下書き保存
 
     const previewData = {
       title: titleInput.value.trim() || '無題の物語',
@@ -649,6 +720,7 @@ if (draftBtn) {
       content: contentInput ? contentInput.value : ''
     };
     localStorage.setItem('draft_story', JSON.stringify(draft));
+    saveDraftToLocalStorage();
     customDialog.alert('下書きを保存しました。');
   });
 
@@ -1032,7 +1104,8 @@ document.querySelectorAll('.sound-card').forEach(card => {
     // 「00-home」のカードが押された時は、共通の背景BGMタグ（audio-home）を操作する
     const isHome = (audioId === '00-home' || audioId === 'audio-home');
     const targetAudio = document.getElementById(isHome ? 'audio-home' : audioId);
-    if (!targetAudio) return;
+    // 無音（00-none）の場合はaudio要素が存在しないため、それ以外で要素が見つからない場合のみ中断
+    if (!targetAudio && audioId !== '00-none') return;
     
     const currentAudioId = isHome ? 'audio-home' : audioId;
     const isEditor = !!document.querySelector('.editor-container');
@@ -1050,16 +1123,27 @@ document.querySelectorAll('.sound-card').forEach(card => {
 
     // 執筆画面以外（BGM・SE一覧など）では、実際に音を鳴らして確認できるようにする
     if (!isEditor) {
-      document.querySelectorAll('audio').forEach(audio => {
-        if (audio !== targetAudio) {
-          audio.pause();
-          audio.currentTime = 0;
-        }
-      });
+      if (currentAudioId === '00-none') {
+        // 無音カードが押された場合は、全ての音響をフェードアウトさせてリセットする
+        document.querySelectorAll('audio').forEach(a => {
+          if (a.id !== 'audio-mekuru') fadeOut(a, 1000);
+        });
+      } else {
+        document.querySelectorAll('audio').forEach(audio => {
+          if (audio !== targetAudio) {
+            audio.pause();
+            audio.currentTime = 0;
+          }
+        });
 
-      const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
-      targetAudio.volume = savedVolume;
-      targetAudio.play().catch(e => console.log("Audio play failed:", e));
+        const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
+        targetAudio.volume = savedVolume;
+        // 特定の効果音（ドア、ノック、めくる、電車）はループさせない
+        // 特定の効果音（ドア、ノック、めくる）はループさせない
+        const isOneShot = ['10-doa', '10-nokku', '10-mekuru', 'audio-mekuru', '10-densya'].includes(currentAudioId);
+        targetAudio.loop = !isOneShot;
+        targetAudio.play().catch(e => console.log("Audio play failed:", e));
+      }
     }
   });
 });
@@ -1074,6 +1158,7 @@ async function insertSoundTag(type) {
   const start = textarea.selectionStart;
   const end = textarea.selectionEnd;
   const text = textarea.value;
+  const scrollPos = textarea.scrollTop; // 現在のスクロール位置を記憶
 
   let id;
   if (type === 'AUTO') {
@@ -1101,11 +1186,11 @@ async function insertSoundTag(type) {
     taggedText = lines.map(line => line.trim() !== '' ? tag + line : line).join('\n');
   }
 
-  textarea.value = text.substring(0, start) + taggedText + text.substring(end);
+  // スクロール位置が変わらないように setRangeText を使用し、直後に位置を復元する
+  textarea.setRangeText(taggedText, start, end, 'end');
   
   textarea.focus();
-  const newPos = start + taggedText.length;
-  textarea.setSelectionRange(newPos, newPos);
+  textarea.scrollTop = scrollPos; // スクロール位置を元に戻す
   updateSoundIndicator();
 }
 
@@ -1118,11 +1203,28 @@ document.addEventListener('DOMContentLoaded', () => {
       insertSoundTag('AUTO');
     };
   }
+
+  const addSceneBtn = document.getElementById('add-scene-btn');
+  if (addSceneBtn) {
+    addSceneBtn.onclick = () => {
+      const textarea = document.getElementById('editor-body');
+      const start = textarea.selectionStart;
+      const scrollPos = textarea.scrollTop; // 現在のスクロール位置を記憶
+      const tag = "\n[SCENE]\n";
+      textarea.setRangeText(tag, start, textarea.selectionEnd, 'end');
+      textarea.scrollTop = scrollPos; // スクロール位置を元に戻す
+      updateSoundIndicator();
+    };
+  }
 });
 
 // 読書画面：一行ずつ表示する演出
 const textBody = document.querySelector('.text-body');
 if (textBody) {
+  // 表示管理用の変数を定義（scopeを showNextLine と共有）
+  let lines = [];
+  let currentLineIndex = 0;
+
   const currentId = localStorage.getItem('current_story_id');
   // 動的作品の読み込み待ち中に「終電の後」が表示されないよう、UIを即座に初期化する
   if (currentId) {
@@ -1185,13 +1287,31 @@ if (textBody) {
       if (authorEl) authorEl.textContent = author + ' 著';
 
       textBody.innerHTML = ''; 
-      // 空行を除去しつつ、各行をpタグとして生成
-      const allLines = content.split('\n').map(l => l.trim()).filter(l => l !== "");
-      allLines.forEach(lineText => {
+
+      // --- シーン分割ロジック ---
+      // [BGM:...] または [SCENE] で分割する
+      const segments = content.split(/(\[BGM:[^\]]+\]|\[SCENE\])/g);
+      let currentChunk = "";
+      
+      const createSceneElement = (text) => {
+        if (text.trim() === "" && !/\[(BGM|SE|BG):.+?\]/.test(text)) return;
         const p = document.createElement('p');
-        p.textContent = lineText;
+        p.dataset.fullText = text; // 演出タグを含む全文を保持
+        // 表示用：タグを除去し、改行を保持
+        p.innerHTML = text.replace(/\[(BGM|SE|BG):.+?\]|\[SCENE\]/g, '').trim().replace(/\n/g, '<br>');
         textBody.appendChild(p);
+      };
+
+      segments.forEach(seg => {
+        if (!seg) return;
+        if (seg.startsWith('[BGM:') || seg === '[SCENE]') {
+          if (currentChunk) createSceneElement(currentChunk);
+          currentChunk = seg;
+        } else {
+          currentChunk += seg;
+        }
       });
+      if (currentChunk) createSceneElement(currentChunk);
 
       const endMarker = document.createElement('p');
       endMarker.id = 'story-end-marker';
@@ -1260,6 +1380,7 @@ if (textBody) {
           updateReaderLikeIcons(id, likedBy);
         });
       }
+      // showNextLine() の自動実行を削除：読者のクリック待ちにする
     };
 
     const storyId = localStorage.getItem('current_story_id');
@@ -1286,40 +1407,6 @@ if (textBody) {
     }
   })();
 
-  // 行のリストを取得
-  let lines = textBody.querySelectorAll('p');
-  let currentLineIndex = 0;
-
-  // フェードアウト関数
-  const fadeOut = (audio, duration = 2000) => {
-    const startVolume = audio.volume;
-    const step = startVolume / (duration / 50);
-    const timer = setInterval(() => {
-      if (audio.volume > step) {
-        audio.volume -= step;
-      } else {
-        audio.volume = 0;
-        audio.pause();
-        clearInterval(timer);
-      }
-    }, 50);
-  };
-
-  // フェードイン関数
-  const fadeIn = (audio, targetVolume, duration = 2000) => {
-    audio.volume = 0;
-    audio.play().catch(e => console.log("Audio play failed:", e));
-    const step = targetVolume / (duration / 50);
-    const timer = setInterval(() => {
-      if (audio.volume < targetVolume - step) {
-        audio.volume += step;
-      } else {
-        audio.volume = targetVolume;
-        clearInterval(timer);
-      }
-    }, 50);
-  };
-
   const showNextLine = () => {
     if (currentLineIndex < lines.length) {
       const currentLine = lines[currentLineIndex];
@@ -1327,31 +1414,27 @@ if (textBody) {
 
       // --- 音声演出の制御 ---
       const currentVolume = volumeSlider ? volumeSlider.value : 0.4;
+      const fullText = currentLine.dataset.fullText || "";
 
-      const tagRegex = /\[(BGM|SE|BG):(.+?)\]/g;
-      const originalText = currentLine.textContent;
-
-      // BGMまたはSEタグが含まれているかチェック
-      const hasSoundTag = /\[(BGM|SE):.+?\]/.test(originalText);
-
-      // タグを除去した本文のみのテキストを確認（空白や演出タグのみの行を判定）
-      const cleanText = originalText.replace(/\[(BGM|SE|BG):.+?\]/g, '').trim();
-
-      // 「音響タグがない」かつ「実際に本文（文字）がある」場合のみ、音をフェードアウトさせる
-      // これにより、空行や[BG:...]タグのみの行でBGMが止まるのを防ぎます
-      if (!hasSoundTag && cleanText !== "") {
-        document.querySelectorAll('audio').forEach(a => {
-          if (a.id !== 'audio-home' && a.id !== 'audio-mekuru') {
-            if (!a.paused && a.volume > 0) fadeOut(a, 1000);
-          }
-        });
-      }
-
+      // タグと[SCENE]を、本文内での出現順に処理する正規表現
+      const tagRegex = /\[(BGM|SE|BG):(.+?)\]|\[SCENE\]/g;
       let match;
       
-      while ((match = tagRegex.exec(originalText)) !== null) {
+      while ((match = tagRegex.exec(fullText)) !== null) {
+        // 1. [SCENE] または IDが「無音/リセット」系（none, reset等）の場合の処理
+        const rawId = match[2]?.trim();
+        if (match[0] === '[SCENE]' || rawId === '00-none' || rawId === 'none' || rawId === 'reset') {
+          // システム音以外をすべてフェードアウト
+          document.querySelectorAll('audio').forEach(a => {
+            if (a.id !== 'audio-mekuru') {
+              fadeOut(a, 2000);
+            }
+          });
+          continue;
+        }
+
         const type = match[1];
-        const audioId = match[2];
+        const audioId = rawId;
 
         if (type === 'BG') {
           // 背景変更：色の指定またはクラスの追加
@@ -1365,6 +1448,9 @@ if (textBody) {
 
         const audioEl = document.getElementById(audioId);
         if (audioEl) {
+          // 特定の効果音（ドア、ノック、めくる）はループさせない
+          const isOneShot = ['10-doa', '10-nokku', '10-mekuru', 'audio-mekuru', '10-densya'].includes(audioId);
+          audioEl.loop = !isOneShot;
           if (type === 'BGM') {
             // 既に指定されたBGMが流れている場合は、再度のフェードイン（音量の初期化）を避ける
             if (audioEl.paused || audioEl.volume < 0.1) {
@@ -1378,15 +1464,17 @@ if (textBody) {
             }
           } else {
             // SEタグ、またはBGMタグだがループ設定がない（効果音）場合
+            // [SCENE]等による既存のフェードアウト指示がある場合は解除して上書きする
+            if (audioEl.fadeTimer) {
+              clearInterval(audioEl.fadeTimer);
+              audioEl.fadeTimer = null;
+            }
             audioEl.volume = currentVolume;
             audioEl.currentTime = 0;
             audioEl.play().catch(e => console.log("Sound play failed:", e));
           }
         }
       }
-
-      // 表示からタグを消去
-      currentLine.textContent = originalText.replace(/\[(BGM|SE|BG):(.+?)\]/g, ''); // Use a fresh regex literal for replace
 
       // タグを除去した結果、空行になった場合は自動で次へ（演出のみの行を飛ばす）
       if (currentLine.textContent.trim() === "" && currentLineIndex < lines.length - 1) {
@@ -1396,8 +1484,7 @@ if (textBody) {
         return;
       }
 
-      // 新しい行が画面の中央に来るように自動スクロール
-      currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // 新しい行を表示
       currentLineIndex++;
 
       // 最後の行を表示し終えたら、少し待ってからENDを出す
@@ -1405,7 +1492,6 @@ if (textBody) {
         const endMarker = document.getElementById('story-end-marker');
         if (endMarker) {
           endMarker.classList.add('is-visible');
-          endMarker.scrollIntoView({ behavior: 'smooth', block: 'center' });
           
           // 物語が終わったら「次へ」ボタンを隠す
           const nextBtn = document.getElementById('mobile-next-btn');
@@ -1472,6 +1558,10 @@ if (textBody) {
 
     // ボタン、リンク、音量スライダーの操作時はテキストを進めない
     if (e.target.closest('button') || e.target.closest('a') || e.target.closest('.volume-control')) return;
+    
+    // 音声許可の初回クリックと重なった場合は物語を進めない（1文目が勝手に出るのを防ぐ）
+    if (e.isFirstAudioClick) return;
+
     showNextLine();
   });
 
@@ -1562,7 +1652,7 @@ function updateSoundIndicator() {
   const htmlContent = escapedText.replace(tagRegexGlobal, (match, type) => {
     const icon = type === 'BGM' ? '📻' : (type === 'SE' ? '🔊' : '🖼️');
     return `<span style="position:relative; display:inline-block; color:transparent; user-select:none; background:rgba(0,0,0,0.05); border-radius:3px;">${match}<span style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; pointer-events:none; visibility:visible;" title="${match}">${icon}</span></span>`;
-  });
+  }).replace(/\[SCENE\]/g, '<span style="display:block; border-top: 1px dashed #ccc; margin: 5px 0; color: transparent;">[SCENE]</span>');
   
   if (display.innerHTML !== htmlContent) {
     display.innerHTML = htmlContent;
@@ -1589,8 +1679,9 @@ function updateSoundIndicator() {
     const bgmMatch = line.match(/\[BGM:(.+?)\]/);
     const seMatch = line.match(/\[SE:(.+?)\]/);
     const bgMatch = line.match(/\[BG:(.+?)\]/);
+    const sceneMatch = line.match(/\[SCENE\]/);
 
-    if (bgmMatch || seMatch || bgMatch) {
+    if (bgmMatch || seMatch || bgMatch || sceneMatch) {
       const marker = document.createElement('div');
       marker.className = 'sound-marker';
       
@@ -1610,6 +1701,9 @@ function updateSoundIndicator() {
         // 背景変更のみの場合は青緑色
         marker.style.backgroundColor = '#008080';
         tooltips.push(`背景: ${bgMatch[1]}`);
+      } else if (sceneMatch) {
+        marker.style.backgroundColor = '#27ae60'; // シーン区切りは緑
+        tooltips.push(`シーン区切り`);
       }
 
       // マウスホバー時に表示するテキストを設定
@@ -1691,6 +1785,7 @@ function updateSoundHistory() {
     // IDを日本語名に変換するマップ
     const soundNameMap = {
       '00-home': 'ホーム', 'audio-home': 'ホーム',
+      '00-none': '無音',
       '01-aki': '秋', '01-haru': '春', '01-huyu': '冬', '01-natu': '夏',
       '02-ame': '雨', '02-kaze': '風',
       '03-gakkou': '学校', '03-inaka': '田舎', '03-mori': '森', '03-tokai': '都会', '03-umi': '海',
