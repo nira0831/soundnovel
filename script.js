@@ -285,21 +285,24 @@ const fadeOut = (audio, duration = 2000) => {
   if (audio.fadeTimer) clearInterval(audio.fadeTimer);
 
   const startVolume = audio.volume;
-  if (startVolume <= 0) {
-    audio.pause();
-    return;
-  }
-  const step = startVolume / (duration / 50);
+  const interval = 50;
+  const steps = Math.max(1, duration / interval);
+  let stepCount = 0;
+
   audio.fadeTimer = setInterval(() => {
-    if (audio.volume > step) {
-      audio.volume -= step;
-    } else {
+    stepCount++;
+    if (stepCount >= steps) {
       audio.volume = 0;
       audio.pause();
       clearInterval(audio.fadeTimer);
       audio.fadeTimer = null;
+    } else {
+      // iOS等でボリューム変更が無視されても、ステップ数で終了判定を行う
+      try {
+        audio.volume = Math.max(0, startVolume * (1 - stepCount / steps));
+      } catch (e) {}
     }
-  }, 50);
+  }, interval);
 };
 
 // フェードイン演出用の共通関数
@@ -308,18 +311,25 @@ const fadeIn = (audio, targetVolume, duration = 2000) => {
   // 既にフェード中の場合は一旦クリア
   if (audio.fadeTimer) clearInterval(audio.fadeTimer);
 
-  audio.volume = 0;
+  try { audio.volume = 0; } catch (e) {}
   audio.play().catch(e => console.log("Audio play failed:", e));
-  const step = targetVolume / (duration / 50);
+  
+  const interval = 50;
+  const steps = Math.max(1, duration / interval);
+  let stepCount = 0;
+
   audio.fadeTimer = setInterval(() => {
-    if (audio.volume < targetVolume - step) {
-      audio.volume += step;
-    } else {
+    stepCount++;
+    if (stepCount >= steps) {
       audio.volume = targetVolume;
       clearInterval(audio.fadeTimer);
       audio.fadeTimer = null;
+    } else {
+      try {
+        audio.volume = Math.min(targetVolume, targetVolume * (stepCount / steps));
+      } catch (e) {}
     }
-  }, 50);
+  }, interval);
 };
 
 // Function to create and append the audio hint
