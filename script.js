@@ -628,6 +628,7 @@ document.querySelectorAll('.story-card .btn.primary').forEach(btn => {
   btn.addEventListener('click', () => {
     // 静的な作品（終電の後など）を読む場合は、動的IDをクリアする
     localStorage.removeItem('current_story_id');
+    localStorage.removeItem('is_preview_mode');
     
     saveBgmTime();
     const container = document.querySelector('.container');
@@ -964,6 +965,7 @@ if (libraryGrid) {
     if (e.target.classList.contains('user-story-btn')) {
       const storyId = e.target.dataset.id;
       localStorage.setItem('current_story_id', storyId);
+      localStorage.removeItem('is_preview_mode');
       
       const container = document.querySelector('.container');
       if (container) container.classList.add('camera-down-leave');
@@ -1403,7 +1405,15 @@ if (textBody) {
         // 【本番読書モード】
         if (backBtn) {
           backBtn.textContent = '一覧に戻る';
-          // 通常の「一覧に戻る」ロジック（novels.htmlへ）は script.js 後方のイベントリスナーが担当
+          // プレビュー時の「エディタに戻る」イベントを上書きし、確実に一覧へ戻るようにする
+          backBtn.onclick = (e) => {
+            e.preventDefault();
+            const container = document.querySelector('.container');
+            if (container) container.classList.add('camera-down-leave');
+            playPageTurn();
+            saveBgmTime();
+            setTimeout(() => { location.href = 'novels.html'; }, 700);
+          };
         }
 
         // いいねボタンの設置（フッター）
@@ -1676,7 +1686,9 @@ function updateSoundIndicator() {
   display.style.webkitTextFillColor = 'transparent';
 
   display.style.fontVariantLigatures = 'none'; // 合字による幅の変化を防止
-  display.style.textRendering = 'auto';
+  // テキストレンダリングの設定を統一してズレを最小限にする
+  display.style.textRendering = 'optimizeLegibility';
+  textarea.style.textRendering = 'optimizeLegibility';
   display.style.border = 'none'; // ミラーレイヤーの枠線による幅の誤差を排除
   display.style.boxSizing = computedStyle.boxSizing;
   display.style.overflow = 'hidden';
@@ -1706,11 +1718,12 @@ function updateSoundIndicator() {
   const escapedText = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const tagRegexGlobal = /\[(BGM|SE|BG):(.+?)\]/g;
   
-  // ミラーレイヤーのHTML更新（アイコン表示）
-  const htmlContent = escapedText.replace(tagRegexGlobal, (match, type) => {
+  // ミラーレイヤーのHTML更新
+  // vertical-align: top と line-height: inherit を追加して垂直方向のズレを解消
+  const htmlContent = escapedText.replace(tagRegexGlobal, (match, type, id) => {
     const icon = type === 'BGM' ? '📻' : (type === 'SE' ? '🔊' : '🖼️');
-    return `<span style="position:relative; display:inline-block; color:transparent; user-select:none; background:rgba(0,0,0,0.05); border-radius:3px;">${match}<span style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; pointer-events:none; visibility:visible;" title="${match}">${icon}</span></span>`;
-  }).replace(/\[SCENE\]/g, '<span style="display:block; border-top: 1px dashed #ccc; margin: 5px 0; color: transparent;">[SCENE]</span>');
+    return `<span class="sound-tag-span" data-type="${type}" data-id="${id}" style="position:relative; display:inline-block; vertical-align:top; line-height:inherit; color:transparent; user-select:none; background:rgba(0,0,0,0.08); border-radius:3px;">${match}<span style="position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); color:#999; font-size:14px; pointer-events:none; visibility:visible;" title="${match}">${icon}</span></span>`;
+  }).replace(/\[SCENE\]/g, '<span class="sound-tag-span" data-type="SCENE" style="display:inline-block; width:100%; vertical-align:top; line-height:inherit; border-top: 1px dashed #ccc; box-sizing:border-box; color: transparent;">[SCENE]</span>');
   
   if (display.innerHTML !== htmlContent) {
     display.innerHTML = htmlContent;
@@ -1727,54 +1740,37 @@ function updateSoundIndicator() {
     bar.appendChild(container);
   }
 
-  const lines = text.split('\n');
-
-  const paddingTop = parseFloat(computedStyle.paddingTop);
-
+  // コンテナを一旦クリアして再生成
   container.innerHTML = '';
 
-  lines.forEach((line, index) => {
-    const bgmMatch = line.match(/\[BGM:(.+?)\]/);
-    const seMatch = line.match(/\[SE:(.+?)\]/);
-    const bgMatch = line.match(/\[BG:(.+?)\]/);
-    const sceneMatch = line.match(/\[SCENE\]/);
-
-    if (bgmMatch || seMatch || bgMatch || sceneMatch) {
-      const marker = document.createElement('div');
-      marker.className = 'sound-marker';
-      
-      let tooltips = [];
-      if (bgmMatch && seMatch) {
-        // BGMとSEの両方がある場合は黒
-        marker.style.backgroundColor = '#000';
-        tooltips.push(`BGM: ${bgmMatch[1]}`);
-        tooltips.push(`SE: ${seMatch[1]}`);
-      } else if (bgmMatch) {
-        marker.style.backgroundColor = '#ff9800'; // BGMはオレンジ
-        tooltips.push(`BGM: ${bgmMatch[1]}`);
-      } else if (seMatch) {
-        marker.style.backgroundColor = '#2196f3'; // SEは青
-        tooltips.push(`SE: ${seMatch[1]}`);
-      } else if (bgMatch) {
-        // 背景変更のみの場合は青緑色
-        marker.style.backgroundColor = '#008080';
-        tooltips.push(`背景: ${bgMatch[1]}`);
-      } else if (sceneMatch) {
-        marker.style.backgroundColor = '#27ae60'; // シーン区切りは緑
-        tooltips.push(`シーン区切り`);
-      }
-
-      // マウスホバー時に表示するテキストを設定
-      marker.title = tooltips.join('\n');
-
-      // 行の位置に合わせて「ー」のような細い横棒を表示
-      // テキストエリアの境界線（border）も考慮して位置を調整
-      marker.style.top = `${paddingTop + borderTop + (index * lineHeight) + (lineHeight / 2) - 1.5}px`;
-      marker.style.left = '0'; // バーの基準位置（左端）に合わせる
-      marker.style.height = '3px';
-      marker.style.width = '20px';
-      container.appendChild(marker);
+  // ミラーレイヤー内の各タグ要素から正確な座標を取得してマーカーを配置
+  display.querySelectorAll('.sound-tag-span').forEach(span => {
+    const type = span.dataset.type;
+    const id = span.dataset.id || '';
+    const marker = document.createElement('div');
+    marker.className = 'sound-marker';
+    
+    if (type === 'BGM') {
+      marker.style.backgroundColor = '#ff9800';
+      marker.title = `BGM: ${id}`;
+    } else if (type === 'SE') {
+      marker.style.backgroundColor = '#2196f3';
+      marker.title = `SE: ${id}`;
+    } else if (type === 'BG') {
+      marker.style.backgroundColor = '#008080';
+      marker.title = `背景: ${id}`;
+    } else if (type === 'SCENE') {
+      marker.style.backgroundColor = '#27ae60';
+      marker.title = `シーン区切り`;
     }
+
+    // spanのoffsetTopを使用して、折り返しを考慮した正確な位置にマーカーを配置
+    // lineHeightの中央付近にマーカーが来るように調整
+    marker.style.top = `${borderTop + span.offsetTop + (lineHeight / 2) - 1.5}px`;
+    marker.style.left = '0';
+    marker.style.height = '3px';
+    marker.style.width = '20px';
+    container.appendChild(marker);
   });
 
   // 履歴の表示も更新
