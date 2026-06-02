@@ -78,6 +78,8 @@ const injectResponsiveStyles = () => {
     }
     #editor-body, #editor-display {
       padding-bottom: 300px !important; /* 疑似要素と同期して内部スクロールを確保 */
+      white-space: pre-wrap !important; /* 改行を維持したまま、枠の右端で自動的に折り返す */
+      word-break: break-all !important; /* 長い単語や句読点でも枠を突き抜けないようにする */
     }
 
     /* 読書画面用いいねボタン */
@@ -383,6 +385,10 @@ const startHomeBgm = (e) => {
     hideAudioHint(); // If no audio element, no hint needed
     return;
   }
+
+    // ユーザーが意図的にオフにしている場合は再生しない
+    const isMuted = localStorage.getItem('home_bgm_muted') === 'true';
+    if (isMuted) return;
 
     // 閲覧ページ（プレビュー中を除く）ではホームBGMを再生しない
     // editor-containerがある場合は作品作成画面なので、プレビューエリアがあっても再生を続ける
@@ -1092,14 +1098,56 @@ document.querySelectorAll('.logo a').forEach(link => {
 // 音量調節のロジック
 const volumeSlider = document.getElementById('volume-slider');
 if (volumeSlider) {
+  const volumeControl = volumeSlider.parentElement;
   const savedVolume = parseFloat(localStorage.getItem('globalVolume') || 0.4);
   volumeSlider.value = savedVolume;
+
+  // BGM切り替えボタンの作成と追加
+  const toggleBtn = document.createElement('button');
+  toggleBtn.id = 'bgm-toggle-btn';
+  const isMuted = localStorage.getItem('home_bgm_muted') === 'true';
+  toggleBtn.innerHTML = isMuted ? '🔇' : '🔊';
+  toggleBtn.title = isMuted ? 'BGMをオンにする' : 'BGMをオフにする';
+  
+  if (volumeControl) {
+    volumeControl.prepend(toggleBtn);
+  }
+
+  const updateBgmState = () => {
+    const homeAudio = document.getElementById('audio-home');
+    const currentlyMuted = localStorage.getItem('home_bgm_muted') === 'true';
+    
+    if (currentlyMuted) {
+      localStorage.setItem('home_bgm_muted', 'false');
+      toggleBtn.innerHTML = '🔊';
+      toggleBtn.title = 'BGMをオフにする';
+      startHomeBgm();
+    } else {
+      localStorage.setItem('home_bgm_muted', 'true');
+      toggleBtn.innerHTML = '🔇';
+      toggleBtn.title = 'BGMをオンにする';
+      if (homeAudio) {
+        fadeOut(homeAudio, 500);
+      }
+      hideAudioHint();
+    }
+  };
+
+  toggleBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    updateBgmState();
+  });
 
   volumeSlider.addEventListener('input', (e) => {
     const value = e.target.value;
     localStorage.setItem('globalVolume', value);
     document.querySelectorAll('audio').forEach(audio => {
-      audio.volume = value;
+      // ミュート中でない場合、またはホームBGM以外（SEなど）は即座に反映
+      const isHome = audio.id === 'audio-home';
+      const isMuted = localStorage.getItem('home_bgm_muted') === 'true';
+      if (!isHome || !isMuted) {
+        audio.volume = value;
+      }
     });
   });
 }
