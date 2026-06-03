@@ -5,6 +5,43 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>作品を作る - ノベメロ</title>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .help-circle-btn {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 1px solid #bdc3c7;
+            background: #fff;
+            color: #7f8c8d;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px auto 0;
+            transition: all 0.2s ease;
+        }
+        .help-circle-btn:hover {
+            background: #f1f2f6;
+            border-color: #95a5a6;
+        }
+        #guide-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+        #guide-overlay img {
+            max-width: 90%;
+            max-height: 90%;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            border-radius: 4px;
+        }
+    </style>
 </head>
 <body>
     <div class="volume-control">
@@ -70,6 +107,7 @@
                 <div class="sidebar-group bottom-actions">
                     <button id="draft-btn" class="btn secondary btn-long">下書き保存</button>
                     <button id="publish-btn" class="btn primary btn-long">投稿</button>
+                    <button id="show-guide-btn" class="help-circle-btn" title="解説を表示">?</button>
                 </div>
 
                 <!-- 音響履歴 -->
@@ -86,6 +124,19 @@
         </footer>
     </div>
 
+    <!-- 解説画像用オーバーレイ -->
+    <div id="guide-overlay">
+        <img src="novemelo-kaisetu-sippitu.png" alt="解説画像">
+    </div>
+
+    <script>
+        document.getElementById('show-guide-btn').onclick = function() {
+            document.getElementById('guide-overlay').style.display = 'flex';
+        };
+        document.getElementById('guide-overlay').onclick = function() {
+            this.style.display = 'none';
+        };
+    </script>
     <script type="module" src="firebase.js"></script>
     <script type="module" src="script.js"></script>
 </body>
